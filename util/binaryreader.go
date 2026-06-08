@@ -1,4 +1,4 @@
-package stratumv2
+package util
 
 import (
 	"errors"
@@ -7,7 +7,7 @@ import (
 type BinaryReader struct {
 	data []byte
 	pos  int
-	err  error /// TODO: check in funcs
+	err  error
 }
 
 func (br *BinaryReader) Error() error {

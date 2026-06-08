@@ -1,4 +1,4 @@
-package stratumv2
+package util
 
 import (
 	"encoding/binary"
@@ -12,7 +12,7 @@ const (
 	limit16m = 2 ^ 24 - 1
 )
 
-// inspired by txscript.ScriptBuilder from btcd
+// inspired by txscript.ScriptBuilder from btcd, and strings.StringBuilder
 type BinaryBuilder struct {
 	data []byte
 	err  error
@@ -90,12 +90,9 @@ func (bb *BinaryBuilder) AddStr255(s string) *BinaryBuilder {
 		bb.err = errors.New("AddStr: len > 255")
 		return bb
 	}
-	bin := []byte(s[:255])
-	/// TODO: validate null terminator isnt inserted
-	// bin = bin[:len(bin)-1] /// lop off null byte
 
 	bb.data = append(bb.data, uint8(l))
-	bb.data = append(bb.data, bin...)
+	bb.data = append(bb.data, s...)
 	return bb
 }
 func (bb *BinaryBuilder) AddBin32(s []byte) *BinaryBuilder {

@@ -1,71 +1,9 @@
 package stratumv2
 
-import "errors"
+import (
+	"errors"
 
-type Method = uint8
-
-const (
-	MethodSetupConnection Method = iota
-	MethodSetupConnectionSuccess
-	MethodSetupConnectionError
-	MethodChannelEndpointChanged
-	MethodReconnect
-)
-
-// Mining Protocol
-const (
-	MethodOpenStandardMiningChannel Method = iota + 0x10
-	MethodOpenStandardMiningChannelSuccess
-	MethodOpenMiningChannelError
-	MethodOpenExtendedMiningChannel
-	MethodOpenExtendedMiningChannelSuccess
-	MethodNewMiningJob
-	MethodUpdateChannel
-	MethodUpdateChannelError
-	MethodCloseChannel
-	MethodSetExtranoncePrefix
-	MethodSubmitSharesStandard
-	MethodSubmitSharesExtended
-	MethodSubmitSharesSuccess
-	MethodSubmitSharesError
-	MethodReserved
-	MethodNewExtendedMiningJob
-	MethodSetNewPrevHash
-	MethodSetTarget
-	MethodSetCustomMiningJob
-	MethodSetCustomMiningJobSuccess
-	MethodSetCustomMiningJobError
-	MethodSetGroupChannel
-)
-
-// Job Declaration Protocol
-const (
-	MethodAllocateMiningJobToken            Method = 0x50
-	MethodAllocateMiningJobTokenSuccess     Method = 0x51
-	MethodProvideMissingTransactions        Method = 0x55
-	MethodProvideMissingTransactionsSuccess Method = 0x56
-	MethodDeclareMiningJob                  Method = 0x57
-	MethodDeclareMiningJobSuccess           Method = 0x58
-	MethodDeclareMiningJobError             Method = 0x59
-	MethodPushSolution                      Method = 0x60
-)
-
-const (
-	UnsupportedFeatureFlagsError = "unsupported-feature-flags"
-	UnsupportedProtocolError     = "unsupported-protocol"
-	ProtocolVersionMismatchError = "protocol-version-mismatch"
-)
-
-// 3.4
-type Extension = uint16
-
-const (
-	ExtensionTypeMinValid Extension = 0x4000
-	ExtensionTypeMaxValid Extension = 0x7fff
-	ExtensionTypeCore     Extension = 0
-	// TODO: list valid extensions
-	ExtensionNegotiaton                     Extension = 0x0001
-	ExtensionWorkerSpecificHashrateTracking Extension = 0x0002
+	"git.0xf0xx0.eth.limo/0xf0xx0/stratumv2/util"
 )
 
 type Frame struct {
@@ -93,7 +31,7 @@ func (f *Frame) Encode() ([]byte, error) {
 	if int(f.MessageLength) != len(f.Payload) {
 		return nil, errors.New("Frame.Encode: MessageLength != len(Payload)")
 	}
-	out := NewBinaryBuilder()
+	out := util.NewBinaryBuilder()
 	out.AddU16(f.ExtensionType).
 		AddU8(uint8(f.MessageType)).
 		AddU24(f.MessageLength).
@@ -102,7 +40,7 @@ func (f *Frame) Encode() ([]byte, error) {
 	return out.Bytes()
 }
 func (f *Frame) Decode(b []byte) error {
-	r := NewBinaryReader(b)
+	r := util.NewBinaryReader(b)
 	f.ExtensionType = r.ReadU16()
 	messageType := r.ReadU8()
 	f.MessageType = Method(messageType)
@@ -121,14 +59,14 @@ type TLV struct {
 }
 
 func (t *TLV) Encode() ([]byte, error) {
-	out := NewBinaryBuilder()
+	out := util.NewBinaryBuilder()
 	return out.Grow(len(t.Value) + 32).
 		AddU24(t.Type).
 		AddU16(t.Length).
 		AddBin64K(t.Value).Bytes()
 }
 func (t *TLV) Decode(b []byte) error {
-	r := NewBinaryReader(b)
+	r := util.NewBinaryReader(b)
 	t.Type = r.ReadU32()
 	t.Length = r.ReadU16()
 	t.Value = r.ReadBytes(int(t.Length))
@@ -159,7 +97,7 @@ func encodeTLVs(tlvs []TLV) ([]byte, error) {
 // Clients that are not configured to provide telemetry data to the upstream node SHOULD set
 // [SetupConnection.DeviceID] to 0-length strings.
 // However, they MUST always set vendor to a string describing the manufacturer/developer and
-// firmware version and SHOULD always set `HardwareVersion` to a string describing, at least,
+// firmware version and SHOULD always set [SetupConnection.DeviceHardwareVersion] to a string describing, at least,
 // the particular hardware/software package in use.
 type SetupConnection struct {
 	Protocol              uint8  // 0 = Mining Protocol 1 = Job Declaration 2 = Template Distribution Protocol
@@ -169,14 +107,14 @@ type SetupConnection struct {
 	EndpointPort          uint16 // Connecting port value
 	EndpointHost          string // ASCII text indicating the hostname or IP address, truncated at 255 chars
 	DeviceVendor          string // E.g. "Bitaxe"
-	DeviceHardwareVersion string // E.g. "Gamma"
+	DeviceHardwareVersion string // E.g. "BM1370"
 	DeviceFirmware        string // E.g. "esp-miner v2.14.0"
 	DeviceID              string // Unique identifier of the device as defined by the vendor
 	TLVs                  []TLV  // FIXME: wtf do i do with this
 }
 
 func (m *SetupConnection) Encode() ([]byte, error) {
-	out := NewBinaryBuilder()
+	out := util.NewBinaryBuilder()
 	out.AddU8(m.Protocol).
 		AddU16(m.MinVersion).
 		AddU16(m.MaxVersion).
@@ -191,7 +129,7 @@ func (m *SetupConnection) Encode() ([]byte, error) {
 	return out.Bytes()
 }
 func (m *SetupConnection) Decode(b []byte) error {
-	r := NewBinaryReader(b)
+	r := util.NewBinaryReader(b)
 	m.Protocol = r.ReadU8()
 	m.MinVersion = r.ReadU16()
 	m.MaxVersion = r.ReadU16()
@@ -211,13 +149,13 @@ type SetupConnectionSuccess struct {
 }
 
 func (m *SetupConnectionSuccess) Encode() ([]byte, error) {
-	return NewBinaryBuilder().
+	return util.NewBinaryBuilder().
 		AddU16(m.UsedVersion).
 		AddU32(m.Flags).
 		Bytes()
 }
 func (m *SetupConnectionSuccess) Decode(b []byte) error {
-	r := NewBinaryReader(b)
+	r := util.NewBinaryReader(b)
 	m.UsedVersion = r.ReadU16()
 	m.Flags = r.ReadU32()
 	return r.Error()
@@ -229,13 +167,13 @@ type SetupConnectionError struct {
 }
 
 func (m *SetupConnectionError) Encode() ([]byte, error) {
-	return NewBinaryBuilder().
+	return util.NewBinaryBuilder().
 		AddU32(m.Flags).
 		AddStr255(m.ErrorCode).
 		Bytes()
 }
 func (m *SetupConnectionError) Decode(b []byte) error {
-	r := NewBinaryReader(b)
+	r := util.NewBinaryReader(b)
 	m.Flags = r.ReadU32()
 	m.ErrorCode = r.ReadStr255()
 	return r.Error()
@@ -251,10 +189,10 @@ type ChannelEndpointChanged struct {
 }
 
 func (m *ChannelEndpointChanged) Encode() ([]byte, error) {
-	return NewBinaryBuilder().AddU32(m.ChannelID).Bytes()
+	return util.NewBinaryBuilder().AddU32(m.ChannelID).Bytes()
 }
 func (m *ChannelEndpointChanged) Decode(b []byte) error {
-	r := NewBinaryReader(b)
+	r := util.NewBinaryReader(b)
 	m.ChannelID = r.ReadU32()
 	return r.Error()
 }
@@ -278,10 +216,10 @@ type Reconnect struct {
 }
 
 func (m *Reconnect) Encode() ([]byte, error) {
-	return NewBinaryBuilder().AddStr255(m.NewHost).AddU16(m.NewPort).Bytes()
+	return util.NewBinaryBuilder().AddStr255(m.NewHost).AddU16(m.NewPort).Bytes()
 }
 func (m *Reconnect) Decode(b []byte) error {
-	r := NewBinaryReader(b)
+	r := util.NewBinaryReader(b)
 	m.NewHost = r.ReadStr255()
 	m.NewPort = r.ReadU16()
 	return r.Error()

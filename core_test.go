@@ -17,8 +17,7 @@ func TestBleh(t *testing.T) {
 	rand.Read(r)
 	h.Write(r)
 	out := h.Sum(b)
-	// out = append(out, r...)
-	out = r
+	out = append(out, r...)
 	f := stratumv2.Frame{
 		ExtensionType: stratumv2.ExtensionTypeCore,
 		MessageType:   stratumv2.MethodSetupConnection,
