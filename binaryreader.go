@@ -17,12 +17,13 @@ func (br *BinaryReader) read(l int) []byte {
 	if br.err != nil {
 		return nil
 	}
-	if br.pos+l >= len(br.data) {
+	if br.pos+l > len(br.data) {
 		br.err = errors.New("BinaryReader: EOF: can't read past end of data")
 		return nil
 	}
 	b := br.data[br.pos : br.pos+l]
 	br.pos += l
+	// println(fmt.Sprintf("read: %X %d/%d", b, br.pos, len(br.data)))
 	return b
 }
 func (br *BinaryReader) ReadBool() (bool, error) {
@@ -55,6 +56,8 @@ func (br *BinaryReader) ReadU24() uint32 {
 	}
 	b := br.read(3)
 	b = append(make([]byte, 0, 4), b...)
+	b = append(b, 0)
+
 	return ble.Uint32(b)
 }
 func (br *BinaryReader) ReadU32() uint32 {

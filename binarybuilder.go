@@ -60,6 +60,7 @@ func (bb *BinaryBuilder) AddU24(u uint32) *BinaryBuilder {
 		return bb
 	}
 
+	/// TODO: validate this
 	enc := ble.AppendUint32(make([]byte, 4), u)
 	bb.data = append(bb.data, enc[1:]...)
 	return bb
