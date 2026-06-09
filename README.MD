@@ -18,14 +18,14 @@ if err := frame.Decode(bytes); err != nil {
 	println(err.Error())
 	return
 }
-if f.MessageType != stratumv2.MethodSubmitSharesExtended {
+if frame.MessageType != stratumv2.MethodSubmitSharesExtended {
 	panic("not SubmitSharesExtended message")
 }
 if err := msg.Decode(frame.Payload); err != nil {
 	println(err.Error())
 	return
 }
-fmt.Sprintf("%+v", m) /// {SubmitSharesStandard:{ChannelID:45 Sequence:6 JobID:19865119 Nonce:1276414625 Time:1780872531 Version:537583616} Extranonce:[0 0 0 0 0 10]}
+fmt.Sprintf("%+v", msg) /// {SubmitSharesStandard:{ChannelID:45 Sequence:6 JobID:19865119 Nonce:1276414625 Time:1780872531 Version:537583616} Extranonce:[0 0 0 0 0 10]}
 
 /// most everything implements the [Codable] interface
 enc, err := msg.Encode()
