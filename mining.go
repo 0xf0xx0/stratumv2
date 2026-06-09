@@ -1,6 +1,8 @@
 package stratumv2
 
 import (
+	"bytes"
+
 	"git.0xf0xx0.eth.limo/0xf0xx0/stratumv2/util"
 	"github.com/btcsuite/btcd/chaincfg/chainhash"
 	"github.com/btcsuite/btcd/wire"
@@ -15,6 +17,8 @@ const (
 	InvalidJobIDError          = "invalid-job-id"
 	InvalidMiningJobTokenError = "invalid-mining-job-token"
 )
+
+type Bin32 = []byte
 
 // This message requests to open a standard channel to the upstream node.
 //
@@ -45,15 +49,25 @@ type OpenStandardMiningChannel struct {
 	NominalHashRate float32
 	// Maximum target which can be accepted by the connected device or devices.
 	// Server MUST accept the target or respond by sending [OpenMiningChannelError] message.
-	MaxTarget [32]byte
+	MaxTarget chainhash.Hash
 }
 
 func (m *OpenStandardMiningChannel) Encode() ([]byte, error) {
 	out := util.NewBinaryBuilder()
-	return out.Bytes()
+	return out.
+		AddU32(m.RequestID).
+		AddStr255(m.UserIdentity).
+		AddF32(m.NominalHashRate).
+		AddU256(m.MaxTarget).
+		Bytes()
 }
 func (m *OpenStandardMiningChannel) Decode(b []byte) error {
 	r := util.NewBinaryReader(b)
+
+	m.RequestID = r.ReadU32()
+	m.UserIdentity = r.ReadStr255()
+	m.NominalHashRate = r.ReadF32()
+	m.MaxTarget = r.ReadU256()
 
 	return r.Error()
 }
@@ -68,7 +82,7 @@ type OpenStandardMiningChannelSuccess struct {
 	// e.g. it is used for broadcasting new jobs by [NewExtendedMiningJob]
 	ChannelID uint32
 	// Initial target for the mining channel
-	Target [32]byte
+	Target chainhash.Hash
 	// Bytes used as implicit first part of extranonce for the scenario when
 	// extended job is served by the upstream node for a set of standard channels
 	// that belong to the same group
@@ -79,10 +93,23 @@ type OpenStandardMiningChannelSuccess struct {
 
 func (m *OpenStandardMiningChannelSuccess) Encode() ([]byte, error) {
 	out := util.NewBinaryBuilder()
-	return out.Bytes()
+
+	return out.
+		AddU32(m.RequestID).
+		AddU32(m.ChannelID).
+		AddU256(m.Target).
+		AddBin32(m.ExtranoncePrefix).
+		AddU32(m.GroupChannelID).
+		Bytes()
 }
 func (m *OpenStandardMiningChannelSuccess) Decode(b []byte) error {
 	r := util.NewBinaryReader(b)
+
+	m.RequestID = r.ReadU32()
+	m.ChannelID = r.ReadU32()
+	m.Target = r.ReadU256()
+	m.ExtranoncePrefix = r.ReadBin32()
+	m.GroupChannelID = r.ReadU32()
 
 	return r.Error()
 }
@@ -96,10 +123,23 @@ type OpenExtendedMiningChannel struct {
 
 func (m *OpenExtendedMiningChannel) Encode() ([]byte, error) {
 	out := util.NewBinaryBuilder()
-	return out.Bytes()
+	// encode embedded struct furst
+	b, err := m.OpenStandardMiningChannel.Encode()
+	if err != nil {
+		return nil, err
+	}
+	return out.AddBytes(b).
+		AddU16(m.MinExtranonceSize).
+		Bytes()
 }
 func (m *OpenExtendedMiningChannel) Decode(b []byte) error {
 	r := util.NewBinaryReader(b)
+
+	m.RequestID = r.ReadU32()
+	m.UserIdentity = r.ReadStr255()
+	m.NominalHashRate = r.ReadF32()
+	m.MaxTarget = r.ReadU256()
+	m.MinExtranonceSize = r.ReadU16()
 
 	return r.Error()
 }
@@ -112,25 +152,45 @@ type OpenExtendedMiningChannelSuccess struct {
 
 func (m *OpenExtendedMiningChannelSuccess) Encode() ([]byte, error) {
 	out := util.NewBinaryBuilder()
-	return out.Bytes()
+
+	// encode embedded struct furst
+	b, err := m.OpenStandardMiningChannelSuccess.Encode()
+	if err != nil {
+		return nil, err
+	}
+
+	return out.AddBytes(b).
+		AddU16(m.ExtranonceSize).
+		Bytes()
 }
 func (m *OpenExtendedMiningChannelSuccess) Decode(b []byte) error {
 	r := util.NewBinaryReader(b)
 
+	m.RequestID = r.ReadU32()
+	m.ChannelID = r.ReadU32()
+	m.Target = r.ReadU256()
+	m.ExtranoncePrefix = r.ReadBin32()
+	m.GroupChannelID = r.ReadU32()
+	m.ExtranonceSize = r.ReadU16()
+
 	return r.Error()
 }
 
+// Possible errors: [UnknownUserError], [MaxTargetOutOfRangeError]
 type OpenMiningChannelError struct {
-	RequestID uint32 // Client-specified request ID from [OpenMiningChannel] message
+	RequestID uint32 // Client-specified request ID from [Open*MiningChannel] message
 	ErrorCode string // Person-readable error code(s)
 }
 
 func (m *OpenMiningChannelError) Encode() ([]byte, error) {
 	out := util.NewBinaryBuilder()
-	return out.Bytes()
+	return out.AddU32(m.RequestID).AddStr255(m.ErrorCode).Bytes()
 }
 func (m *OpenMiningChannelError) Decode(b []byte) error {
 	r := util.NewBinaryReader(b)
+
+	m.RequestID = r.ReadU32()
+	m.ErrorCode = r.ReadStr255()
 
 	return r.Error()
 }
@@ -149,15 +209,23 @@ type UpdateChannel struct {
 	// This field is understood as device's request.
 	// There can be some delay between UpdateChannel and corresponding SetTarget messages,
 	// based on new job readiness on the server.
-	MaxTarget [32]byte
+	MaxTarget chainhash.Hash
 }
 
 func (m *UpdateChannel) Encode() ([]byte, error) {
 	out := util.NewBinaryBuilder()
-	return out.Bytes()
+
+	return out.AddU32(m.ChannelID).
+		AddF32(m.NominalHashRate).
+		AddU256(m.MaxTarget).
+		Bytes()
 }
 func (m *UpdateChannel) Decode(b []byte) error {
 	r := util.NewBinaryReader(b)
+
+	m.ChannelID = r.ReadU32()
+	m.NominalHashRate = r.ReadF32()
+	m.MaxTarget = r.ReadU256()
 
 	return r.Error()
 }
@@ -171,10 +239,16 @@ type UpdateChannelError struct {
 
 func (m *UpdateChannelError) Encode() ([]byte, error) {
 	out := util.NewBinaryBuilder()
-	return out.Bytes()
+
+	return out.AddU32(m.ChannelID).
+		AddStr255(m.ErrorCode).
+		Bytes()
 }
 func (m *UpdateChannelError) Decode(b []byte) error {
 	r := util.NewBinaryReader(b)
+
+	m.ChannelID = r.ReadU32()
+	m.ErrorCode = r.ReadStr255()
 
 	return r.Error()
 }
@@ -197,11 +271,13 @@ type CloseChannel struct {
 
 func (m *CloseChannel) Encode() ([]byte, error) {
 	out := util.NewBinaryBuilder()
-	return out.Bytes()
+	return out.AddU32(m.ChannelID).AddStr255(m.ReasonCode).Bytes()
 }
 func (m *CloseChannel) Decode(b []byte) error {
 	r := util.NewBinaryReader(b)
 
+	m.ChannelID = r.ReadU32()
+	m.ReasonCode = r.ReadStr255()
 	return r.Error()
 }
 
@@ -212,15 +288,18 @@ func (m *CloseChannel) Decode(b []byte) error {
 // (not group channels).
 type SetExtranoncePrefix struct {
 	ChannelID        uint32
-	ExtranoncePrefix []byte // Bytes used as implicit first part of extranonce
+	ExtranoncePrefix Bin32 // Bytes used as implicit first part of extranonce
 }
 
 func (m *SetExtranoncePrefix) Encode() ([]byte, error) {
 	out := util.NewBinaryBuilder()
-	return out.Bytes()
+	return out.AddU32(m.ChannelID).AddBin32(m.ExtranoncePrefix).Bytes()
 }
 func (m *SetExtranoncePrefix) Decode(b []byte) error {
 	r := util.NewBinaryReader(b)
+
+	m.ChannelID = r.ReadU32()
+	m.ExtranoncePrefix = r.ReadBin32()
 
 	return r.Error()
 }
@@ -241,10 +320,24 @@ type SubmitSharesStandard struct {
 
 func (m *SubmitSharesStandard) Encode() ([]byte, error) {
 	out := util.NewBinaryBuilder()
+
+	out.AddU32(m.ChannelID).
+		AddU32(m.Sequence).
+		AddU32(m.JobID).
+		AddU32(m.Nonce).
+		AddU32(m.Time).
+		AddU32(m.Version)
 	return out.Bytes()
 }
 func (m *SubmitSharesStandard) Decode(b []byte) error {
 	r := util.NewBinaryReader(b)
+
+	m.ChannelID = r.ReadU32()
+	m.Sequence = r.ReadU32()
+	m.JobID = r.ReadU32()
+	m.Nonce = r.ReadU32()
+	m.Time = r.ReadU32()
+	m.Version = r.ReadU32()
 
 	return r.Error()
 }
@@ -255,15 +348,29 @@ type SubmitSharesExtended struct {
 	// Extranonce bytes which need to be added to coinbase to form a fully valid submission
 	// (full coinbase = coinbase_tx_prefix + extranonce_prefix + extranonce + coinbase_tx_suffix).
 	// The size of the provided extranonce MUST be equal to the negotiated extranonce size from channel opening.
-	Extranonce []byte
+	Extranonce Bin32
 }
 
 func (m *SubmitSharesExtended) Encode() ([]byte, error) {
 	out := util.NewBinaryBuilder()
+
+	b, err := m.SubmitSharesStandard.Encode()
+	if err != nil {
+		return nil, err
+	}
+	out.AddBytes(b).AddBin32(m.Extranonce)
 	return out.Bytes()
 }
 func (m *SubmitSharesExtended) Decode(b []byte) error {
 	r := util.NewBinaryReader(b)
+
+	m.ChannelID = r.ReadU32()
+	m.Sequence = r.ReadU32()
+	m.JobID = r.ReadU32()
+	m.Nonce = r.ReadU32()
+	m.Time = r.ReadU32()
+	m.Version = r.ReadU32()
+	m.Extranonce = r.ReadBin32()
 
 	return r.Error()
 }
@@ -291,10 +398,21 @@ type SubmitSharesSuccess struct {
 
 func (m *SubmitSharesSuccess) Encode() ([]byte, error) {
 	out := util.NewBinaryBuilder()
+
+	out.AddU32(m.ChannelID).
+		AddU32(m.LastSequenceNumber).
+		AddU32(m.NewSubmitsAcceptedCount).
+		AddU64(m.NewSharesSum)
+
 	return out.Bytes()
 }
 func (m *SubmitSharesSuccess) Decode(b []byte) error {
 	r := util.NewBinaryReader(b)
+
+	m.ChannelID = r.ReadU32()
+	m.LastSequenceNumber = r.ReadU32()
+	m.NewSubmitsAcceptedCount = r.ReadU32()
+	m.NewSharesSum = r.ReadU64()
 
 	return r.Error()
 }
@@ -304,6 +422,9 @@ func (m *SubmitSharesSuccess) Decode(b []byte) error {
 // the error is sent as soon as the result is known.
 // This delayed validation can occur when a miner gets faster updates about a new prevhash than
 // the server does (see [SetNewPrevHash] message for details).
+//
+// Possible errors: [InvalidChannelIDError], [StaleShareError],
+// [DifficultyTooLowError], [InvalidJobIDError]
 type SubmitSharesError struct {
 	ChannelID      uint32
 	SequenceNumber uint32 // Submission sequence number for which this error is returned
@@ -312,11 +433,17 @@ type SubmitSharesError struct {
 
 func (m *SubmitSharesError) Encode() ([]byte, error) {
 	out := util.NewBinaryBuilder()
+
+	out.AddU32(m.ChannelID).AddU32(m.SequenceNumber).AddStr255(m.ErrorCode)
+
 	return out.Bytes()
 }
 func (m *SubmitSharesError) Decode(b []byte) error {
 	r := util.NewBinaryReader(b)
 
+	m.ChannelID = r.ReadU32()
+	m.SequenceNumber = r.ReadU32()
+	m.ErrorCode = r.ReadStr255()
 	return r.Error()
 }
 
@@ -328,7 +455,7 @@ type NewMiningJob struct {
 	// This [SetNewPrevHash] message provides the new [PrevHash] and [MinTime].
 	// If the [MinTime] value is set, this mining job is active and miner must start mining on it immediately.
 	// In this case, the new mining job uses the [SetNewPrevHash.PrevHash] from the last received [SetNewPrevHash] message.
-	MinTime uint32
+	MinTime []uint32
 	// Valid version field that reflects the current network consensus.
 	// The general purpose bits (as specified in BIP320) can be freely manipulated by the downstream node.
 	// The downstream node MUST NOT rely on the upstream node to set the BIP320 bits to any particular value.
@@ -338,10 +465,23 @@ type NewMiningJob struct {
 
 func (m *NewMiningJob) Encode() ([]byte, error) {
 	out := util.NewBinaryBuilder()
+
+	out.AddU32(m.ChannelID).
+		AddU32(m.JobID).
+		AddOptionT(util.U32Array(m.MinTime)).
+		AddU32(m.Version).
+		AddU256(m.MerkleRoot)
+
 	return out.Bytes()
 }
 func (m *NewMiningJob) Decode(b []byte) error {
 	r := util.NewBinaryReader(b)
+
+	m.ChannelID = r.ReadU32()
+	m.JobID = r.ReadU32()
+	m.MinTime = []uint32(r.ReadOptionT(make(util.U32Array, 0)).(util.U32Array))
+	m.Version = r.ReadU32()
+	m.MerkleRoot = r.ReadU256()
 
 	return r.Error()
 }
@@ -390,7 +530,19 @@ func (m *NewMiningJob) Decode(b []byte) error {
 //	# Interpret the final 32-byte hash as a 256-bit integer in little-endian form
 //	merkle_root = Uint256(little_endian_bytes = raw_merkle_root)
 type NewExtendedMiningJob struct {
-	NewMiningJob
+	ChannelID uint32
+	JobID     uint32 // Identifier of the job as provided by [NewMiningJob] or [NewExtendedMiningJob] message
+	// Smallest nTime value available for hashing for the new mining job.
+	// A zero value indicates this is a future job to be activated once a [SetNewPrevHash] message is received with a matching [JobID].
+	// This [SetNewPrevHash] message provides the new [PrevHash] and [MinTime].
+	// If the [MinTime] value is set, this mining job is active and miner must start mining on it immediately.
+	// In this case, the new mining job uses the [SetNewPrevHash.PrevHash] from the last received [SetNewPrevHash] message.
+	MinTime []uint32
+	// Valid version field that reflects the current network consensus.
+	// The general purpose bits (as specified in BIP320) can be freely manipulated by the downstream node.
+	// The downstream node MUST NOT rely on the upstream node to set the BIP320 bits to any particular value.
+	Version    uint32
+	MerklePath []chainhash.Hash // Merkle path hashes ordered from deepest
 	// If set to True, the general purpose bits of version (as specified in BIP320) can be
 	// freely manipulated by the downstream node.
 	// The downstream node MUST NOT rely on the upstream node to set the BIP320 bits to any particular value.
@@ -402,10 +554,29 @@ type NewExtendedMiningJob struct {
 
 func (m *NewExtendedMiningJob) Encode() ([]byte, error) {
 	out := util.NewBinaryBuilder()
+
+	out.AddU32(m.ChannelID).
+		AddU32(m.JobID).
+		AddOptionT(util.U32Array(m.MinTime)).
+		AddU32(m.Version).
+		AddBool(m.VersionRollingAllowed).
+		AddSeq255(util.U256Array(m.MerklePath)).
+		AddBin64K(m.CoinbasePrefix).
+		AddBin64K(m.CoinbaseSuffix)
+
 	return out.Bytes()
 }
 func (m *NewExtendedMiningJob) Decode(b []byte) error {
 	r := util.NewBinaryReader(b)
+
+	m.ChannelID = r.ReadU32()
+	m.JobID = r.ReadU32()
+	m.MinTime = []uint32(r.ReadOptionT(util.U32Array{}).(util.U32Array))
+	m.Version = r.ReadU32()
+	m.VersionRollingAllowed = r.ReadBool()
+	m.MerklePath = []chainhash.Hash(r.ReadSeq255(util.U256Array{}).(util.U256Array))
+	m.CoinbasePrefix = r.ReadBin64K()
+	m.CoinbaseSuffix = r.ReadBin64K()
 
 	return r.Error()
 }
@@ -429,11 +600,23 @@ type SetNewPrevHash struct {
 
 func (m *SetNewPrevHash) Encode() ([]byte, error) {
 	out := util.NewBinaryBuilder()
+
+	out.AddU32(m.ChannelID).
+		AddU32(m.JobID).
+		AddU256(m.PrevHash).
+		AddU32(m.MinTime).
+		AddU32(m.Bits)
+
 	return out.Bytes()
 }
 func (m *SetNewPrevHash) Decode(b []byte) error {
 	r := util.NewBinaryReader(b)
 
+	m.ChannelID = r.ReadU32()
+	m.JobID = r.ReadU32()
+	m.PrevHash = r.ReadU256()
+	m.MinTime = r.ReadU32()
+	m.Bits = r.ReadU32()
 	return r.Error()
 }
 
@@ -465,12 +648,55 @@ type SetCustomMiningJob struct {
 }
 
 func (m *SetCustomMiningJob) Encode() ([]byte, error) {
-	out := util.NewBinaryBuilder()
+	coinbaseOutputs := make([]byte, 0, len(m.CoinbaseOutputs)*256)
+
+	for _, txout := range m.CoinbaseOutputs {
+		var buf bytes.Buffer
+		buf.Grow(txout.SerializeSize())
+		wire.WriteTxOut(&buf, uint32(wire.LatestEncoding), int32(m.CoinbaseVersion), &txout)
+		coinbaseOutputs = append(coinbaseOutputs, buf.Bytes()...)
+	}
+	out := util.NewBinaryBuilder().
+		AddU32(m.ChannelID).
+		AddU32(m.RequestID).
+		AddBin255(m.MiningJobToken).
+		AddU32(m.Version).
+		AddU256(m.PrevHash).
+		AddU32(m.MinTime).
+		AddU32(m.Bits).
+		AddU32(m.CoinbaseVersion).
+		AddBin255(m.CoinbasePrefix).
+		AddU32(m.CoinbaseSequence).
+		AddBin64K(coinbaseOutputs).
+		AddU32(m.CoinbaseLocktime).
+		AddSeq255(util.U256Array(m.MerklePath))
 	return out.Bytes()
 }
 func (m *SetCustomMiningJob) Decode(b []byte) error {
 	r := util.NewBinaryReader(b)
 
+	m.ChannelID = r.ReadU32()
+	m.RequestID = r.ReadU32()
+	m.MiningJobToken = r.ReadBin255()
+	m.Version = r.ReadU32()
+	m.PrevHash = r.ReadU256()
+	m.MinTime = r.ReadU32()
+	m.Bits = r.ReadU32()
+	m.CoinbaseVersion = r.ReadU32()
+	m.CoinbasePrefix = r.ReadBin255()
+	m.CoinbaseSequence = r.ReadU32()
+
+	/// FIXME: encoding
+
+	// outputs := r.ReadBin64K()
+	// l, err := wire.ReadVarIntBuf(r, uint32(wire.LatestEncoding), outputs)
+	//m.CoinbaseOutputs = make([]wire.TxOut, 0, l)
+	// for i := uint64(0); i < l; i++ {
+	// txout := &wire.TxOut{}
+	// wire.ReadTxOut(r, uint32(wire.LatestEncoding), int32(m.CoinbaseVersion), txout)
+	// m.CoinbaseOutputs = append(m.CoinbaseOutputs, *txout)
+	// }
+	m.CoinbaseLocktime = r.ReadU32()
 	return r.Error()
 }
 
@@ -543,19 +769,19 @@ func (m *SetCustomMiningJobError) Decode(b []byte) error {
 // When SetTarget is sent to a group channel, the maximum target is applicable to all channels in the group.
 type SetTarget struct {
 	ChannelID uint32
-	Maxtarget chainhash.Hash // Maximum value of produced hash that will be accepted by a server to accept shares
+	MaxTarget chainhash.Hash // Maximum value of produced hash that will be accepted by a server to accept shares
 }
 
 func (m *SetTarget) Encode() ([]byte, error) {
 	out := util.NewBinaryBuilder()
 	return out.AddU32(m.ChannelID).
-		AddBytes(m.Maxtarget[:]).Bytes()
+		AddU256(m.MaxTarget).Bytes()
 }
 func (m *SetTarget) Decode(b []byte) error {
 	r := util.NewBinaryReader(b)
 
 	m.ChannelID = r.ReadU32()
-	m.Maxtarget = chainhash.Hash(r.ReadBytes(32))
+	m.MaxTarget = r.ReadU256()
 	return r.Error()
 }
 

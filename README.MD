@@ -1,6 +1,8 @@
 # stratumv2
 
-pure-go stratumv2 module, sans noise
+pure-go stratumv2 module
+
+
 
 # TODO
 - implement all protocols

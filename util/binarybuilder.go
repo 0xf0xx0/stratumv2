@@ -3,6 +3,7 @@ package util
 import (
 	"encoding/binary"
 	"errors"
+	"math"
 
 	"github.com/btcsuite/btcd/chaincfg/chainhash"
 )
@@ -17,7 +18,7 @@ const (
 type Array interface {
 	Encode() ([]byte, error)
 	Len() int
-	// Decode([]byte) error
+	Decode(int, *BinaryReader) (Array, error)
 }
 type BoolArray []bool
 
@@ -28,6 +29,13 @@ func (a BoolArray) Encode() ([]byte, error) {
 		out.AddBool(v)
 	}
 	return out.Bytes()
+}
+func (a BoolArray) Decode(l int, br *BinaryReader) (BoolArray, error) {
+	a = make(BoolArray, 0, l)
+	for range l {
+		a = append(a, br.ReadBool())
+	}
+	return a, br.Error()
 }
 func (a BoolArray) Len() int {
 	return len(a)
@@ -43,6 +51,13 @@ func (a U8Array) Encode() ([]byte, error) {
 	}
 	return out.Bytes()
 }
+func (a U8Array) Decode(l int, br *BinaryReader) error {
+	a = make(U8Array, 0, l)
+	for range l {
+		a = append(a, br.ReadU8())
+	}
+	return br.Error()
+}
 func (a U8Array) Len() int {
 	return len(a)
 }
@@ -56,6 +71,13 @@ func (a U16Array) Encode() ([]byte, error) {
 		out.AddU16(v)
 	}
 	return out.Bytes()
+}
+func (a U16Array) Decode(l int, br *BinaryReader) error {
+	a = make(U16Array, 0, l)
+	for range l {
+		a = append(a, br.ReadU16())
+	}
+	return br.Error()
 }
 func (a U16Array) Len() int {
 	return len(a)
@@ -71,6 +93,13 @@ func (a U24Array) Encode() ([]byte, error) {
 	}
 	return out.Bytes()
 }
+func (a U24Array) Decode(l int, br *BinaryReader) error {
+	a = make(U24Array, 0, l)
+	for range l {
+		a = append(a, br.ReadU24())
+	}
+	return br.Error()
+}
 func (a U24Array) Len() int {
 	return len(a)
 }
@@ -84,6 +113,13 @@ func (a U32Array) Encode() ([]byte, error) {
 		out.AddU32(v)
 	}
 	return out.Bytes()
+}
+func (a U32Array) Decode(l int, br *BinaryReader) (Array, error) {
+	a = make(U32Array, 0, l)
+	for range l {
+		a = append(a, br.ReadU32())
+	}
+	return a, br.Error()
 }
 func (a U32Array) Len() int {
 	return len(a)
@@ -99,6 +135,13 @@ func (a U64Array) Encode() ([]byte, error) {
 	}
 	return out.Bytes()
 }
+func (a U64Array) Decode(l int, br *BinaryReader) error {
+	a = make(U64Array, 0, l)
+	for range l {
+		a = append(a, br.ReadU64())
+	}
+	return br.Error()
+}
 func (a U64Array) Len() int {
 	return len(a)
 }
@@ -112,6 +155,13 @@ func (a U256Array) Encode() ([]byte, error) {
 		out.AddBytes(v[:])
 	}
 	return out.Bytes()
+}
+func (a U256Array) Decode(l int, br *BinaryReader) (Array, error) {
+	a = make(U256Array, 0, l)
+	for range l {
+		a = append(a, br.ReadU256())
+	}
+	return a, br.Error()
 }
 func (a U256Array) Len() int {
 	return len(a)
@@ -186,6 +236,14 @@ func (bb *BinaryBuilder) AddU64(u uint64) *BinaryBuilder {
 	bb.data = ble.AppendUint64(bb.data, u)
 	return bb
 }
+func (bb *BinaryBuilder) AddU256(u chainhash.Hash) *BinaryBuilder {
+	if bb.err != nil {
+		return bb
+	}
+
+	bb.data = append(bb.data, u[:]...)
+	return bb
+}
 func (bb *BinaryBuilder) AddStr255(s string) *BinaryBuilder {
 	if bb.err != nil {
 		return bb
@@ -200,6 +258,15 @@ func (bb *BinaryBuilder) AddStr255(s string) *BinaryBuilder {
 	bb.data = append(bb.data, s...)
 	return bb
 }
+func (bb *BinaryBuilder) AddF32(f float32) *BinaryBuilder {
+	if bb.err != nil {
+		return bb
+	}
+
+	bb.data = ble.AppendUint32(bb.data, math.Float32bits(f))
+	return bb
+}
+
 func (bb *BinaryBuilder) AddBin32(s []byte) *BinaryBuilder {
 	if bb.err != nil {
 		return bb
@@ -287,6 +354,27 @@ func (bb *BinaryBuilder) AddShortTXID(txid [6]byte) *BinaryBuilder {
 	return bb
 }
 
+func (bb *BinaryBuilder) AddOptionT(things Array) *BinaryBuilder {
+	return bb.AddSeq1(things)
+}
+func (bb *BinaryBuilder) AddSeq1(things Array) *BinaryBuilder {
+	if bb.err != nil {
+		return bb
+	}
+	l := things.Len()
+	if l > 1 {
+		bb.err = errors.New("AddSeq1: len > 1")
+		return bb
+	}
+	bb.data = append(bb.data, uint8(l))
+	enc, err := things.Encode()
+	if err != nil {
+		bb.err = err
+		return bb
+	}
+	bb.data = append(bb.data, enc...)
+	return bb
+}
 func (bb *BinaryBuilder) AddSeq255(things Array) *BinaryBuilder {
 	if bb.err != nil {
 		return bb
@@ -323,6 +411,7 @@ func (bb *BinaryBuilder) AddSeq64K(things Array) *BinaryBuilder {
 	bb.data = append(bb.data, enc...)
 	return bb
 }
+
 func (bb *BinaryBuilder) AddBytes(bin []byte) *BinaryBuilder {
 	bb.data = append(bb.data, bin...)
 	return bb
