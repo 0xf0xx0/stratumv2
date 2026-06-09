@@ -18,6 +18,23 @@ const (
 	InvalidMiningJobTokenError = "invalid-mining-job-token"
 )
 
+const (
+	// The downstream node requires standard jobs, and is unable to process extended jobs.
+	RequiresStandardJobsFlag = uint32(0b001)
+	// If set to 1, the client notifies the server that it will send [SetCustomMiningJob] on this connection
+	RequiresWorkSelectionFlag = uint32(0b010)
+	// The client requires version rolling for efficiency or correct operation and the
+	// server MUST NOT send jobs which do not allow version rolling
+	RequiresVersionRollingFlag = uint32(0b100)
+	// Upstream node will not accept any changes to the version field.
+	// Note that if [RequiresVersionRollingFlag] was set in the [SetupConnection.Flags] field,
+	// this bit MUST NOT be set.
+	// Further, if this bit is set, extended jobs MUST NOT indicate support for version rolling.
+	RequiresFixedVersionFlag = uint32(0b01)
+	// Upstream node will not accept opening of a standard channel
+	RequiresExtendedChannelsFlag = uint32(0b10)
+)
+
 type Bin32 = []byte
 
 // This message requests to open a standard channel to the upstream node.
@@ -498,13 +515,15 @@ func (m *NewMiningJob) Decode(b []byte) error {
 // The proxy MAY transform this multicast variant for downstream standard channels into [NewMiningJob]
 // messages by computing the derived Merkle root for them. A proxy MUST translate the message into
 // [NewMiningJob] for all downstream standard channels belonging to the group in case
-// the [SetupConnection] message had the [REQUIRES_STANDARD_JOB] flag set
+// the [SetupConnection] message had the [RequiresStandardJobsFlag] flag set
 // (intended and expected behavior for end mining devices).
 //
 // *The full coinbase is constructed by inserting one of the following:
 //
-// - For a standard channel: `extranonce_prefix`
-// - For an extended channel: `extranonce_prefix + extranonce (=N bytes)`, where `N` is the negotiated extranonce space for the channel ([OpenExtendedMiningChannelSuccess.ExtranonceSize])
+// - For a standard channel: [ExtranoncePrefix]
+//
+// - For an extended channel: `[ExtranoncePrefix] + [Extranonce] (=N bytes)`, where `N` is the negotiated extranonce space for the channel ([OpenExtendedMiningChannelSuccess.ExtranonceSize])
+//
 // *If the original coinbase is a SegWit transaction, [CoinbasePrefix] and [CoinbaseSuffix] MUST be
 // stripped of BIP141 fields (marker, flag, witness count, witness length and witness reserved value).
 //
@@ -706,7 +725,7 @@ func (m *SetCustomMiningJob) Decode(b []byte) error {
 // the miner SHOULD start hashing and buffer the work optimistically.
 //
 // This message acts as a commitment from the Pool to rewarding this job.
-// In case the Pool does not commit (either by timeout, or responding with SetCustomMiningJob.Error),
+// In case the Pool does not commit (either by timeout, or responding with [SetCustomMiningJobError]),
 // the miner SHOULD fall back to a different Pool (or solo).
 //
 // After receiving it, the miner can start submitting shares for this job immediately
@@ -797,7 +816,7 @@ func (m *SetTarget) Decode(b []byte) error {
 // The server MUST ensure that a group channel has a unique channel ID within one connection.
 // Channel reinterpretation is not allowed.
 //
-// This message can be sent only to connections that don’t have [REQUIRES_STANDARD_JOBS] flag in [SetupConnection].
+// This message can be sent only to connections that don’t have [RequiresStandardJobsFlag] flag in [SetupConnection].
 type SetGroupChannel struct {
 	GroupChannelID uint32   // Identifier of the group where the standard or extended channel belongs
 	ChannelIDs     []uint32 // A sequence of opened standard or extended channel IDs, for which the group channel is being redefined

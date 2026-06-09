@@ -15,5 +15,6 @@ func plaintextLen2CiphertextLen(l uint) int {
 	return int(l/MAX_PLAINTEXT_LEN*MAX_CIPERTEXT_LEN + rem)
 }
 
+// TODO
 type EncryptedFrame struct {
 }

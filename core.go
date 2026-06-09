@@ -101,10 +101,12 @@ func encodeTLVs(tlvs []TLV) ([]byte, error) {
 // firmware version and SHOULD always set [SetupConnection.DeviceHardwareVersion] to a string describing, at least,
 // the particular hardware/software package in use.
 type SetupConnection struct {
-	Protocol              uint8  // 0 = Mining Protocol 1 = Job Declaration 2 = Template Distribution Protocol
-	MinVersion            uint16 // The minimum protocol version the client supports (currently must be 2)
-	MaxVersion            uint16 // The maximum protocol version the client supports (currently must be 2)
-	Flags                 uint32 // Flags indicating optional protocol features the client supports. Each protocol from protocol field as its own values/flags.
+	Protocol   uint8  // 0 = Mining Protocol 1 = Job Declaration 2 = Template Distribution Protocol
+	MinVersion uint16 // The minimum protocol version the client supports (currently must be 2)
+	MaxVersion uint16 // The maximum protocol version the client supports (currently must be 2)
+	// Flags indicating optional protocol features the client supports.
+	// Each protocol from protocol field as its own values/flags.
+	Flags                 uint32
 	EndpointPort          uint16 // Connecting port value
 	EndpointHost          string // ASCII text indicating the hostname or IP address, truncated at 255 chars
 	DeviceVendor          string // E.g. "Bitaxe"
