@@ -27,6 +27,9 @@ func TestExtendedSubmitDecode(t *testing.T) {
 		t.Logf("%+v", f)
 		t.Fatal(err.Error())
 	}
+	if f.MessageType != stratumv2.MethodSubmitSharesExtended {
+		t.Fatal("not SubmitSharesExtended message")
+	}
 	if err := m.Decode(f.Payload); err != nil {
 		t.Logf("%+v", m)
 		t.Fatal(err.Error())

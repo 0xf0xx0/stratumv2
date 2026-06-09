@@ -24,7 +24,7 @@ type Frame struct {
 	// If the MSB in ExtensionType (the `channel_msg` bit) is set the first
 	// four bytes are defined as a U32 "channel_id", though this definition is
 	// repeated in the message definitions below and these 4 bytes are included in MessageLength.
-	Payload []byte
+	Payload []byte // MAYBE: make Message interface? would that fuck up the current handling?
 }
 
 func (f *Frame) Encode() ([]byte, error) {
@@ -75,7 +75,8 @@ func (t *TLV) Decode(b []byte) error {
 
 /// MAYBE: move messages to subpackage?
 
-type MessageInterface interface {
+// most structs implement this interface
+type Codable interface {
 	Encode() ([]byte, error)
 	Decode([]byte) error
 }
