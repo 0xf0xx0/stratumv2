@@ -1,6 +1,7 @@
 package stratumv2
 
 import (
+	"git.0xf0xx0.eth.limo/0xf0xx0/stratumv2/util"
 	"github.com/btcsuite/btcd/chaincfg/chainhash"
 	"github.com/btcsuite/btcd/wire"
 )
@@ -361,4 +362,10 @@ type SetTarget struct {
 type SetGroupChannel struct {
 	GroupChannelID uint32   // Identifier of the group where the standard or extended channel belongs
 	ChannelIDs     []uint32 // A sequence of opened standard or extended channel IDs, for which the group channel is being redefined
+}
+
+func (m *SetGroupChannel) Encode() ([]byte, error) {
+	out := util.NewBinaryBuilder()
+	return out.AddU32(m.GroupChannelID).
+		AddSeq64K(util.U32Array(m.ChannelIDs)).Bytes()
 }

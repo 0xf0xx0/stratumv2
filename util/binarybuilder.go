@@ -3,6 +3,8 @@ package util
 import (
 	"encoding/binary"
 	"errors"
+
+	"github.com/btcsuite/btcd/chaincfg/chainhash"
 )
 
 var ble = binary.LittleEndian
@@ -11,6 +13,109 @@ const (
 	limit64k = 65535
 	limit16m = 2 ^ 24 - 1
 )
+
+type Array interface {
+	Encode() ([]byte, error)
+	Len() int
+	// Decode([]byte) error
+}
+type BoolArray []bool
+
+func (a BoolArray) Encode() ([]byte, error) {
+	out := NewBinaryBuilder()
+	out.Grow(len(a) * 4)
+	for _, v := range a {
+		out.AddBool(v)
+	}
+	return out.Bytes()
+}
+func (a BoolArray) Len() int {
+	return len(a)
+}
+
+type U8Array []uint8
+
+func (a U8Array) Encode() ([]byte, error) {
+	out := NewBinaryBuilder()
+	out.Grow(len(a) * 4)
+	for _, v := range a {
+		out.AddU8(v)
+	}
+	return out.Bytes()
+}
+func (a U8Array) Len() int {
+	return len(a)
+}
+
+type U16Array []uint16
+
+func (a U16Array) Encode() ([]byte, error) {
+	out := NewBinaryBuilder()
+	out.Grow(len(a) * 4)
+	for _, v := range a {
+		out.AddU16(v)
+	}
+	return out.Bytes()
+}
+func (a U16Array) Len() int {
+	return len(a)
+}
+
+type U24Array []uint32
+
+func (a U24Array) Encode() ([]byte, error) {
+	out := NewBinaryBuilder()
+	out.Grow(len(a) * 4)
+	for _, v := range a {
+		out.AddU24(v)
+	}
+	return out.Bytes()
+}
+func (a U24Array) Len() int {
+	return len(a)
+}
+
+type U32Array []uint32
+
+func (a U32Array) Encode() ([]byte, error) {
+	out := NewBinaryBuilder()
+	out.Grow(len(a) * 4)
+	for _, v := range a {
+		out.AddU32(v)
+	}
+	return out.Bytes()
+}
+func (a U32Array) Len() int {
+	return len(a)
+}
+
+type U64Array []uint64
+
+func (a U64Array) Encode() ([]byte, error) {
+	out := NewBinaryBuilder()
+	out.Grow(len(a) * 8)
+	for _, v := range a {
+		out.AddU64(v)
+	}
+	return out.Bytes()
+}
+func (a U64Array) Len() int {
+	return len(a)
+}
+
+type U256Array []chainhash.Hash
+
+func (a U256Array) Encode() ([]byte, error) {
+	out := NewBinaryBuilder()
+	out.Grow(len(a) * 256)
+	for _, v := range a {
+		out.AddBytes(v[:])
+	}
+	return out.Bytes()
+}
+func (a U256Array) Len() int {
+	return len(a)
+}
 
 // inspired by txscript.ScriptBuilder from btcd, and strings.StringBuilder
 type BinaryBuilder struct {
@@ -182,25 +287,40 @@ func (bb *BinaryBuilder) AddShortTXID(txid [6]byte) *BinaryBuilder {
 	return bb
 }
 
-// TODO: figure out how to handle T
-func (bb *BinaryBuilder) AddSeq255(things []any) *BinaryBuilder {
+func (bb *BinaryBuilder) AddSeq255(things Array) *BinaryBuilder {
 	if bb.err != nil {
 		return bb
 	}
-	l := len(things)
+	l := things.Len()
 	if l > 255 {
 		bb.err = errors.New("AddSeq255: len > 255")
 		return bb
 	}
 	bb.data = append(bb.data, uint8(l))
-	//b.data = append(b.data, txid[:]...)
+	enc, err := things.Encode()
+	if err != nil {
+		bb.err = err
+		return bb
+	}
+	bb.data = append(bb.data, enc...)
 	return bb
 }
-func (bb *BinaryBuilder) AddSeq16K(things []any) *BinaryBuilder {
+func (bb *BinaryBuilder) AddSeq64K(things Array) *BinaryBuilder {
 	if bb.err != nil {
 		return bb
 	}
-	//b.data = append(b.data, txid[:]...)
+	l := things.Len()
+	if l > 65535 {
+		bb.err = errors.New("AddSeq64K: len > 65535")
+		return bb
+	}
+	bb.AddU16(uint16(l))
+	enc, err := things.Encode()
+	if err != nil {
+		bb.err = err
+		return bb
+	}
+	bb.data = append(bb.data, enc...)
 	return bb
 }
 func (bb *BinaryBuilder) AddBytes(bin []byte) *BinaryBuilder {
