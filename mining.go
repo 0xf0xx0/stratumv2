@@ -468,7 +468,7 @@ func (m *NewMiningJob) Encode() ([]byte, error) {
 
 	out.AddU32(m.ChannelID).
 		AddU32(m.JobID).
-		AddOptionT(util.U32Array(m.MinTime)).
+		AddOptionT(util.U32Sequence(m.MinTime)).
 		AddU32(m.Version).
 		AddU256(m.MerkleRoot)
 
@@ -479,7 +479,7 @@ func (m *NewMiningJob) Decode(b []byte) error {
 
 	m.ChannelID = r.ReadU32()
 	m.JobID = r.ReadU32()
-	m.MinTime = []uint32(r.ReadOptionT(make(util.U32Array, 0)).(util.U32Array))
+	m.MinTime = []uint32(r.ReadOptionT(make(util.U32Sequence, 0)).(util.U32Sequence))
 	m.Version = r.ReadU32()
 	m.MerkleRoot = r.ReadU256()
 
@@ -557,10 +557,10 @@ func (m *NewExtendedMiningJob) Encode() ([]byte, error) {
 
 	out.AddU32(m.ChannelID).
 		AddU32(m.JobID).
-		AddOptionT(util.U32Array(m.MinTime)).
+		AddOptionT(util.U32Sequence(m.MinTime)).
 		AddU32(m.Version).
 		AddBool(m.VersionRollingAllowed).
-		AddSeq255(util.U256Array(m.MerklePath)).
+		AddSeq255(util.U256Sequence(m.MerklePath)).
 		AddBin64K(m.CoinbasePrefix).
 		AddBin64K(m.CoinbaseSuffix)
 
@@ -571,10 +571,10 @@ func (m *NewExtendedMiningJob) Decode(b []byte) error {
 
 	m.ChannelID = r.ReadU32()
 	m.JobID = r.ReadU32()
-	m.MinTime = []uint32(r.ReadOptionT(util.U32Array{}).(util.U32Array))
+	m.MinTime = []uint32(r.ReadOptionT(util.U32Sequence{}).(util.U32Sequence))
 	m.Version = r.ReadU32()
 	m.VersionRollingAllowed = r.ReadBool()
-	m.MerklePath = []chainhash.Hash(r.ReadSeq255(util.U256Array{}).(util.U256Array))
+	m.MerklePath = []chainhash.Hash(r.ReadSeq255(util.U256Sequence{}).(util.U256Sequence))
 	m.CoinbasePrefix = r.ReadBin64K()
 	m.CoinbaseSuffix = r.ReadBin64K()
 
@@ -669,7 +669,7 @@ func (m *SetCustomMiningJob) Encode() ([]byte, error) {
 		AddU32(m.CoinbaseSequence).
 		AddBin64K(coinbaseOutputs).
 		AddU32(m.CoinbaseLocktime).
-		AddSeq255(util.U256Array(m.MerklePath))
+		AddSeq255(util.U256Sequence(m.MerklePath))
 	return out.Bytes()
 }
 func (m *SetCustomMiningJob) Decode(b []byte) error {
@@ -806,7 +806,7 @@ type SetGroupChannel struct {
 func (m *SetGroupChannel) Encode() ([]byte, error) {
 	out := util.NewBinaryBuilder()
 	return out.AddU32(m.GroupChannelID).
-		AddSeq64K(util.U32Array(m.ChannelIDs)).Bytes()
+		AddSeq64K(util.U32Sequence(m.ChannelIDs)).Bytes()
 }
 func (m *SetGroupChannel) Decode(b []byte) error {
 	r := util.NewBinaryReader(b)

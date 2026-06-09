@@ -97,11 +97,11 @@ func (br *BinaryReader) ReadF32() float32 {
 	return math.Float32frombits(ble.Uint32(br.read(4)))
 }
 
-func (br *BinaryReader) ReadOptionT(dest Array) Array {
+func (br *BinaryReader) ReadOptionT(dest Sequence) Sequence {
 	return br.ReadSeq1(dest)
 }
 
-func (br *BinaryReader) ReadSeq1(dest Array) Array {
+func (br *BinaryReader) ReadSeq1(dest Sequence) Sequence {
 	l := br.ReadU8()
 	if l > 1 {
 		br.err = errors.New("ReadSeq1: len > 1")
@@ -114,7 +114,7 @@ func (br *BinaryReader) ReadSeq1(dest Array) Array {
 	}
 	return n
 }
-func (br *BinaryReader) ReadSeq255(dest Array) Array {
+func (br *BinaryReader) ReadSeq255(dest Sequence) Sequence {
 	l := br.ReadU8()
 	n, err := dest.Decode(int(l), br)
 	if err != nil {
@@ -123,7 +123,7 @@ func (br *BinaryReader) ReadSeq255(dest Array) Array {
 	}
 	return n
 }
-func (br *BinaryReader) ReadSeq64K(dest Array) Array {
+func (br *BinaryReader) ReadSeq64K(dest Sequence) Sequence {
 	l := br.ReadU16()
 	n, err := dest.Decode(int(l), br)
 	if err != nil {

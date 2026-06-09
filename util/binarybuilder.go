@@ -15,158 +15,6 @@ const (
 	limit16m = 2 ^ 24 - 1
 )
 
-type Array interface {
-	Encode() ([]byte, error)
-	Len() int
-	Decode(int, *BinaryReader) (Array, error)
-}
-type BoolArray []bool
-
-func (a BoolArray) Encode() ([]byte, error) {
-	out := NewBinaryBuilder()
-	out.Grow(len(a) * 4)
-	for _, v := range a {
-		out.AddBool(v)
-	}
-	return out.Bytes()
-}
-func (a BoolArray) Decode(l int, br *BinaryReader) (BoolArray, error) {
-	a = make(BoolArray, 0, l)
-	for range l {
-		a = append(a, br.ReadBool())
-	}
-	return a, br.Error()
-}
-func (a BoolArray) Len() int {
-	return len(a)
-}
-
-type U8Array []uint8
-
-func (a U8Array) Encode() ([]byte, error) {
-	out := NewBinaryBuilder()
-	out.Grow(len(a) * 4)
-	for _, v := range a {
-		out.AddU8(v)
-	}
-	return out.Bytes()
-}
-func (a U8Array) Decode(l int, br *BinaryReader) error {
-	a = make(U8Array, 0, l)
-	for range l {
-		a = append(a, br.ReadU8())
-	}
-	return br.Error()
-}
-func (a U8Array) Len() int {
-	return len(a)
-}
-
-type U16Array []uint16
-
-func (a U16Array) Encode() ([]byte, error) {
-	out := NewBinaryBuilder()
-	out.Grow(len(a) * 4)
-	for _, v := range a {
-		out.AddU16(v)
-	}
-	return out.Bytes()
-}
-func (a U16Array) Decode(l int, br *BinaryReader) error {
-	a = make(U16Array, 0, l)
-	for range l {
-		a = append(a, br.ReadU16())
-	}
-	return br.Error()
-}
-func (a U16Array) Len() int {
-	return len(a)
-}
-
-type U24Array []uint32
-
-func (a U24Array) Encode() ([]byte, error) {
-	out := NewBinaryBuilder()
-	out.Grow(len(a) * 4)
-	for _, v := range a {
-		out.AddU24(v)
-	}
-	return out.Bytes()
-}
-func (a U24Array) Decode(l int, br *BinaryReader) error {
-	a = make(U24Array, 0, l)
-	for range l {
-		a = append(a, br.ReadU24())
-	}
-	return br.Error()
-}
-func (a U24Array) Len() int {
-	return len(a)
-}
-
-type U32Array []uint32
-
-func (a U32Array) Encode() ([]byte, error) {
-	out := NewBinaryBuilder()
-	out.Grow(len(a) * 4)
-	for _, v := range a {
-		out.AddU32(v)
-	}
-	return out.Bytes()
-}
-func (a U32Array) Decode(l int, br *BinaryReader) (Array, error) {
-	a = make(U32Array, 0, l)
-	for range l {
-		a = append(a, br.ReadU32())
-	}
-	return a, br.Error()
-}
-func (a U32Array) Len() int {
-	return len(a)
-}
-
-type U64Array []uint64
-
-func (a U64Array) Encode() ([]byte, error) {
-	out := NewBinaryBuilder()
-	out.Grow(len(a) * 8)
-	for _, v := range a {
-		out.AddU64(v)
-	}
-	return out.Bytes()
-}
-func (a U64Array) Decode(l int, br *BinaryReader) error {
-	a = make(U64Array, 0, l)
-	for range l {
-		a = append(a, br.ReadU64())
-	}
-	return br.Error()
-}
-func (a U64Array) Len() int {
-	return len(a)
-}
-
-type U256Array []chainhash.Hash
-
-func (a U256Array) Encode() ([]byte, error) {
-	out := NewBinaryBuilder()
-	out.Grow(len(a) * 256)
-	for _, v := range a {
-		out.AddBytes(v[:])
-	}
-	return out.Bytes()
-}
-func (a U256Array) Decode(l int, br *BinaryReader) (Array, error) {
-	a = make(U256Array, 0, l)
-	for range l {
-		a = append(a, br.ReadU256())
-	}
-	return a, br.Error()
-}
-func (a U256Array) Len() int {
-	return len(a)
-}
-
 // inspired by txscript.ScriptBuilder from btcd, and strings.StringBuilder
 type BinaryBuilder struct {
 	data []byte
@@ -354,10 +202,10 @@ func (bb *BinaryBuilder) AddShortTXID(txid [6]byte) *BinaryBuilder {
 	return bb
 }
 
-func (bb *BinaryBuilder) AddOptionT(things Array) *BinaryBuilder {
+func (bb *BinaryBuilder) AddOptionT(things Sequence) *BinaryBuilder {
 	return bb.AddSeq1(things)
 }
-func (bb *BinaryBuilder) AddSeq1(things Array) *BinaryBuilder {
+func (bb *BinaryBuilder) AddSeq1(things Sequence) *BinaryBuilder {
 	if bb.err != nil {
 		return bb
 	}
@@ -375,7 +223,7 @@ func (bb *BinaryBuilder) AddSeq1(things Array) *BinaryBuilder {
 	bb.data = append(bb.data, enc...)
 	return bb
 }
-func (bb *BinaryBuilder) AddSeq255(things Array) *BinaryBuilder {
+func (bb *BinaryBuilder) AddSeq255(things Sequence) *BinaryBuilder {
 	if bb.err != nil {
 		return bb
 	}
@@ -393,7 +241,7 @@ func (bb *BinaryBuilder) AddSeq255(things Array) *BinaryBuilder {
 	bb.data = append(bb.data, enc...)
 	return bb
 }
-func (bb *BinaryBuilder) AddSeq64K(things Array) *BinaryBuilder {
+func (bb *BinaryBuilder) AddSeq64K(things Sequence) *BinaryBuilder {
 	if bb.err != nil {
 		return bb
 	}
