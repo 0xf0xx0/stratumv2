@@ -18,3 +18,57 @@ func TestExtendedJobDecode(t *testing.T) {
 	}
 	t.Logf("%+v", m)
 }
+
+func TestExtendedSubmitDecode(t *testing.T) {
+	b := hexDec("00801b1f00002d000000060000001f1e2f01a18a144c53f5256a00e00a200600000000000a")
+	f := stratumv2.Frame{}
+	m := stratumv2.SubmitSharesExtended{}
+	if err := f.Decode(b); err != nil {
+		t.Logf("%+v", f)
+		t.Fatal(err.Error())
+	}
+	if err := m.Decode(f.Payload); err != nil {
+		t.Logf("%+v", m)
+		t.Fatal(err.Error())
+	}
+	t.Logf("%+v", m)
+}
+
+func TestSubmitAccept(t *testing.T) {
+
+	b := hexDec("2d0000000000000001000000491b000000000000")
+
+	m := stratumv2.SubmitSharesSuccess{}
+
+	if err := m.Decode(b); err != nil {
+		t.Logf("%+v", m)
+		t.Fatal(err.Error())
+	}
+	t.Logf("%+v", m)
+}
+
+func TestSetTarget(t *testing.T) {
+
+	b := hexDec("2d000000000000000000000000000000000000000000000000000000f8ff070000000000")
+
+	m := stratumv2.SetTarget{}
+
+	if err := m.Decode(b); err != nil {
+		t.Logf("%+v", m)
+		t.Fatal(err.Error())
+	}
+	t.Logf("%+v", m)
+}
+
+func TestSetNewPrevHash(t *testing.T) {
+
+	b := hexDec("2d0000006b202f01c46b633188fbe8a156e2c1fdb6fa92888efce6e618960000000000000000000061f5256a8f060217")
+
+	m := stratumv2.SetNewPrevHash{}
+
+	if err := m.Decode(b); err != nil {
+		t.Logf("%+v", m)
+		t.Fatal(err.Error())
+	}
+	t.Logf("%+v", m)
+}
