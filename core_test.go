@@ -31,3 +31,19 @@ func TestSetupConnectionSuccessDecode(t *testing.T) {
 	}
 	t.Logf("%+v", m)
 }
+
+func TestOpenExtendedMiningChannelDecode(t *testing.T) {
+	b := hexDec("000013690000010000003e626331703074767134687572687377686d3670706b6579737836327675686e33363477776c3233786a32716a376130776477736339326c7333776630326ca5d46853ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff0600")
+	f := stratumv2.Frame{}
+	if err := f.Decode(b); err != nil {
+		t.Logf("%+v", f)
+		t.Fatal(err.Error())
+	}
+	t.Logf("%+v", f)
+	m := stratumv2.OpenExtendedMiningChannel{}
+	if err := m.Decode(f.Payload); err != nil {
+		t.Logf("%+v", m)
+		t.Fatal(err.Error())
+	}
+	t.Logf("%+v", m)
+}

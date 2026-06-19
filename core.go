@@ -2,8 +2,15 @@ package stratumv2
 
 import (
 	"errors"
+	"io"
+)
 
-	"git.0xf0xx0.eth.limo/0xf0xx0/stratumv2/util"
+type Protocol = uint8
+
+const (
+	MiningProtocol Protocol = iota
+	JobDeclarationProtocol
+	TemplateDistributionProtocol
 )
 
 type Frame struct {
@@ -31,7 +38,7 @@ func (f *Frame) Encode() ([]byte, error) {
 	if int(f.MessageLength) != len(f.Payload) {
 		return nil, errors.New("Frame.Encode: MessageLength != len(Payload)")
 	}
-	out := util.NewBinaryBuilder()
+	out := NewBinaryBuilder()
 	out.AddU16(f.ExtensionType).
 		AddU8(uint8(f.MessageType)).
 		AddU24(f.MessageLength).
@@ -40,13 +47,38 @@ func (f *Frame) Encode() ([]byte, error) {
 	return out.Bytes()
 }
 func (f *Frame) Decode(b []byte) error {
-	r := util.NewBinaryReader(b)
+	r := NewBinaryReader(b)
 	f.ExtensionType = r.ReadU16()
 	messageType := r.ReadU8()
 	f.MessageType = Method(messageType)
 	f.MessageLength = r.ReadU24()
 	f.Payload = r.ReadBytes(int(f.MessageLength))
 	return r.Error()
+}
+func (f *Frame) DecodeHeader(b []byte) error {
+	r := NewBinaryReader(b)
+	f.ExtensionType = r.ReadU16()
+	messageType := r.ReadU8()
+	f.MessageType = Method(messageType)
+	f.MessageLength = r.ReadU24()
+	return r.Error()
+}
+func (f *Frame) DecodeFromReader(r io.Reader) error {
+	var err error
+
+	header := make([]byte, 6)
+	if _, err = r.Read(header); err != nil {
+		return err
+	}
+
+	if err = f.DecodeHeader(header); err != nil {
+		return err
+	}
+	f.Payload = make([]byte, f.MessageLength)
+	if _, err = r.Read(f.Payload); err != nil {
+		return err
+	}
+	return nil
 }
 
 type TLV struct {
@@ -59,14 +91,14 @@ type TLV struct {
 }
 
 func (t *TLV) Encode() ([]byte, error) {
-	out := util.NewBinaryBuilder()
+	out := NewBinaryBuilder()
 	return out.Grow(len(t.Value) + 32).
 		AddU24(t.Type).
 		AddU16(t.Length).
 		AddBin64K(t.Value).Bytes()
 }
 func (t *TLV) Decode(b []byte) error {
-	r := util.NewBinaryReader(b)
+	r := NewBinaryReader(b)
 	t.Type = r.ReadU32()
 	t.Length = r.ReadU16()
 	t.Value = r.ReadBytes(int(t.Length))
@@ -101,9 +133,9 @@ func encodeTLVs(tlvs []TLV) ([]byte, error) {
 // firmware version and SHOULD always set [SetupConnection.DeviceHardwareVersion] to a string describing, at least,
 // the particular hardware/software package in use.
 type SetupConnection struct {
-	Protocol   uint8  // 0 = Mining Protocol 1 = Job Declaration 2 = Template Distribution Protocol
-	MinVersion uint16 // The minimum protocol version the client supports (currently must be 2)
-	MaxVersion uint16 // The maximum protocol version the client supports (currently must be 2)
+	Protocol   Protocol // 0 = Mining Protocol 1 = Job Declaration 2 = Template Distribution Protocol
+	MinVersion uint16   // The minimum protocol version the client supports (currently must be 2)
+	MaxVersion uint16   // The maximum protocol version the client supports (currently must be 2)
 	// Flags indicating optional protocol features the client supports.
 	// Each protocol from protocol field as its own values/flags.
 	Flags                 uint32
@@ -117,7 +149,7 @@ type SetupConnection struct {
 }
 
 func (m *SetupConnection) Encode() ([]byte, error) {
-	out := util.NewBinaryBuilder()
+	out := NewBinaryBuilder()
 	out.AddU8(m.Protocol).
 		AddU16(m.MinVersion).
 		AddU16(m.MaxVersion).
@@ -132,7 +164,7 @@ func (m *SetupConnection) Encode() ([]byte, error) {
 	return out.Bytes()
 }
 func (m *SetupConnection) Decode(b []byte) error {
-	r := util.NewBinaryReader(b)
+	r := NewBinaryReader(b)
 	m.Protocol = r.ReadU8()
 	m.MinVersion = r.ReadU16()
 	m.MaxVersion = r.ReadU16()
@@ -152,31 +184,32 @@ type SetupConnectionSuccess struct {
 }
 
 func (m *SetupConnectionSuccess) Encode() ([]byte, error) {
-	return util.NewBinaryBuilder().
+	return NewBinaryBuilder().
 		AddU16(m.UsedVersion).
 		AddU32(m.Flags).
 		Bytes()
 }
 func (m *SetupConnectionSuccess) Decode(b []byte) error {
-	r := util.NewBinaryReader(b)
+	r := NewBinaryReader(b)
 	m.UsedVersion = r.ReadU16()
 	m.Flags = r.ReadU32()
 	return r.Error()
 }
 
+// Possible errors: [UnsupportedFeatureFlagsError], [UnsupportedProtocolError], [ProtocolVersionMismatchError]
 type SetupConnectionError struct {
 	Flags     uint32 // Flags indicating features causing an error
 	ErrorCode string // Person-readable error code(s)
 }
 
 func (m *SetupConnectionError) Encode() ([]byte, error) {
-	return util.NewBinaryBuilder().
+	return NewBinaryBuilder().
 		AddU32(m.Flags).
 		AddStr255(m.ErrorCode).
 		Bytes()
 }
 func (m *SetupConnectionError) Decode(b []byte) error {
-	r := util.NewBinaryReader(b)
+	r := NewBinaryReader(b)
 	m.Flags = r.ReadU32()
 	m.ErrorCode = r.ReadStr255()
 	return r.Error()
@@ -192,10 +225,10 @@ type ChannelEndpointChanged struct {
 }
 
 func (m *ChannelEndpointChanged) Encode() ([]byte, error) {
-	return util.NewBinaryBuilder().AddU32(m.ChannelID).Bytes()
+	return NewBinaryBuilder().AddU32(m.ChannelID).Bytes()
 }
 func (m *ChannelEndpointChanged) Decode(b []byte) error {
-	r := util.NewBinaryReader(b)
+	r := NewBinaryReader(b)
 	m.ChannelID = r.ReadU32()
 	return r.Error()
 }
@@ -219,10 +252,10 @@ type Reconnect struct {
 }
 
 func (m *Reconnect) Encode() ([]byte, error) {
-	return util.NewBinaryBuilder().AddStr255(m.NewHost).AddU16(m.NewPort).Bytes()
+	return NewBinaryBuilder().AddStr255(m.NewHost).AddU16(m.NewPort).Bytes()
 }
 func (m *Reconnect) Decode(b []byte) error {
-	r := util.NewBinaryReader(b)
+	r := NewBinaryReader(b)
 	m.NewHost = r.ReadStr255()
 	m.NewPort = r.ReadU16()
 	return r.Error()

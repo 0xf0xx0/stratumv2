@@ -1,6 +1,11 @@
-package util
+package stratumv2
 
-import "github.com/btcsuite/btcd/chaincfg/chainhash"
+import (
+	"encoding/hex"
+	"errors"
+
+	"github.com/btcsuite/btcd/chaincfg/chainhash"
+)
 
 // used for encoding SEQ[T]
 //
@@ -10,7 +15,9 @@ import "github.com/btcsuite/btcd/chaincfg/chainhash"
 //
 // to unwrap:
 //
-//	dest := []chainhash.Hash(r.ReadSeq255(util.U256Sequence{}).(util.U256Sequence))
+//	dest := []chainhash.Hash(r.ReadSeq255(U256Sequence{}).(U256Sequence))
+//
+// TODO: is there a better way we can handle these?
 type Sequence interface {
 	Encode() ([]byte, error)
 	Len() int
@@ -161,4 +168,46 @@ func (a U256Sequence) Decode(l int, br *BinaryReader) (Sequence, error) {
 }
 func (a U256Sequence) Len() int {
 	return len(a)
+}
+
+// basically chainhash.Hash with a different set of funcs
+type U256 [32]byte
+
+func (u *U256) SetBytes(b []byte) error {
+	l := len(b)
+	if l > 32 {
+		return errors.New("SetBytes: len too long")
+	}
+	copy(u[:], b)
+	return nil
+}
+
+func (u *U256) IsEqual(hash *U256) bool {
+	// if theyre the same pointer or nil
+	if u == hash {
+		return true
+	}
+	if u == nil || hash == nil {
+		return false
+	}
+	return *u == *hash
+}
+
+func (u U256) String() string {
+	// flip
+	for i := range 16 {
+		u[i], u[31-i] = u[31-i], u[i]
+	}
+	return hex.EncodeToString(u[:])
+}
+
+// hash must be less than or equal to the target to be a valid share/block
+func (target *U256) IsMetBy(hash *U256) bool {
+	for i := range 32 {
+		x := 31 - i
+		if hash[x] <= target[x] {
+			return true
+		}
+	}
+	return false
 }
