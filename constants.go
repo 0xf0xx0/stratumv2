@@ -1,5 +1,9 @@
 package stratumv2
 
+import "encoding/binary"
+
+var ble = binary.LittleEndian
+
 const (
 	MethodSetupConnection Method = iota
 	MethodSetupConnectionSuccess

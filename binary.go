@@ -1,15 +1,12 @@
 package stratumv2
 
 import (
-	"encoding/binary"
 	"errors"
 	"io"
 	"math"
 
 	"github.com/btcsuite/btcd/chaincfg/chainhash"
 )
-
-var ble = binary.LittleEndian
 
 const (
 	limit64k = 65535
@@ -280,18 +277,16 @@ func (br *BinaryReader) Error() error {
 	return br.err
 }
 
-// TODO: harden
 func (br *BinaryReader) read(l int) []byte {
 	if br.err != nil {
 		return nil
 	}
 	if br.pos+l > len(br.data) {
 		br.err = errors.New("BinaryReader: EOF: can't read past end of data")
-		return nil
+		return br.data[br.pos:]
 	}
 	b := br.data[br.pos : br.pos+l]
 	br.pos += l
-	// println(fmt.Sprintf("read: %X %d/%d", b, br.pos, len(br.data)))
 	return b
 }
 func (br *BinaryReader) ReadBool() bool {
@@ -485,6 +480,7 @@ func (br *BinaryReader) ReadBytes(length int) []byte {
 	return br.read(length)
 }
 
+// [io.Reader] impl
 func (br *BinaryReader) Read(dest []byte) (int, error) {
 	if br.err != nil {
 		return 0, br.err
