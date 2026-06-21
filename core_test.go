@@ -23,13 +23,45 @@ func TestSetupConnectionDecode(t *testing.T) {
 }
 
 func TestSetupConnectionSuccessDecode(t *testing.T) {
-	b := hexDec("020001000000")
+	b := hexDec("000001060000020001000000")
+	f := stratumv2.Frame{}
 	m := stratumv2.SetupConnectionSuccess{}
-	if err := m.Decode(b); err != nil {
+	if err := f.Decode(b); err != nil {
+		t.Logf("%+v", f)
+		t.Fatal(err.Error())
+	}
+	t.Logf("%+v", f)
+	t.Log(f.MessageType == stratumv2.MethodSetupConnectionSuccess)
+	if err := m.Decode(f.Payload); err != nil {
 		t.Logf("%+v", m)
 		t.Fatal(err.Error())
 	}
 	t.Logf("%+v", m)
+}
+
+func TestSetupConnectionSuccessEncode(t *testing.T) {
+	shouldBe := hexDec("000001060000020001000000")
+	m := stratumv2.SetupConnectionSuccess{
+		UsedVersion: 2,
+		Flags:       1,
+	}
+	b, err := m.Encode()
+	if err != nil {
+		t.Fatal(err.Error())
+	}
+	t.Logf("%x", b)
+	f := stratumv2.Frame{
+		ExtensionType: stratumv2.ExtensionTypeCore,
+		MessageType:   stratumv2.MethodSetupConnectionSuccess,
+		MessageLength: uint32(len(b)),
+		Payload:       b,
+	}
+	fb, err := f.Encode()
+	if err != nil {
+		t.Fatal(err.Error())
+	}
+	t.Logf("%x, %d", fb, len(fb))
+	t.Logf("%x", shouldBe)
 }
 
 func TestOpenExtendedMiningChannelDecode(t *testing.T) {

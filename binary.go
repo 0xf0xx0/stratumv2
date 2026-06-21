@@ -63,10 +63,8 @@ func (bb *BinaryBuilder) AddU24(u uint32) *BinaryBuilder {
 	if bb.err != nil {
 		return bb
 	}
-
-	/// TODO: validate this
-	enc := ble.AppendUint32(make([]byte, 4), u)
-	bb.data = append(bb.data, enc[1:]...)
+	enc := ble.AppendUint32(make([]byte, 0, 4), u)
+	bb.data = append(bb.data, enc[:3]...) // ignore the top byte
 	return bb
 }
 func (bb *BinaryBuilder) AddU32(u uint32) *BinaryBuilder {
@@ -429,7 +427,7 @@ func (br *BinaryReader) ReadBin64K() []byte {
 		return nil
 	}
 	l := int(br.ReadU16())
-	println(l)
+	// println(l)
 	b := br.read(l)
 	return b
 }

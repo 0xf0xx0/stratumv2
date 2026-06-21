@@ -1,11 +1,22 @@
 package stratumv2
 
+// contains all (well, most) of the types used in sv2 and this lib
+
 import (
 	"encoding/hex"
 	"errors"
 
 	"github.com/btcsuite/btcd/chaincfg/chainhash"
 )
+
+// helpers
+type Protocol uint8
+type Method uint8
+type Error string
+type Flag uint32
+
+// 3.4
+type Extension = uint16
 
 // used for encoding SEQ[T]
 //
@@ -177,6 +188,18 @@ func (u *U256) SetBytes(b []byte) error {
 	l := len(b)
 	if l > 32 {
 		return errors.New("SetBytes: len too long")
+	}
+	copy(u[:], b)
+	return nil
+}
+func (u *U256) SetString(s string) error {
+	l := len(s)
+	if l > 64 {
+		return errors.New("SetString: len too long")
+	}
+	b, err := hex.DecodeString(s)
+	if err != nil {
+		return err
 	}
 	copy(u[:], b)
 	return nil

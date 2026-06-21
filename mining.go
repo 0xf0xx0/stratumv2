@@ -7,31 +7,33 @@ import (
 	"github.com/btcsuite/btcd/wire"
 )
 
+// errors
 const (
-	UnknownUserError           = "unknown-user"
-	MaxTargetOutOfRangeError   = "max-target-out-of-range"
-	InvalidChannelIDError      = "invalid-channel-id"
-	StaleShareError            = "stale-share"
-	DifficultyTooLowError      = "difficulty-too-low"
-	InvalidJobIDError          = "invalid-job-id"
-	InvalidMiningJobTokenError = "invalid-mining-job-token"
+	UnknownUserError           Error = "unknown-user"
+	MaxTargetOutOfRangeError   Error = "max-target-out-of-range"
+	InvalidChannelIDError      Error = "invalid-channel-id"
+	StaleShareError            Error = "stale-share"
+	DifficultyTooLowError      Error = "difficulty-too-low"
+	InvalidJobIDError          Error = "invalid-job-id"
+	InvalidMiningJobTokenError Error = "invalid-mining-job-token"
 )
 
+// flags
 const (
 	// The downstream node requires standard jobs, and is unable to process extended jobs.
-	RequiresStandardJobsFlag = uint32(0b001)
+	RequiresStandardJobsFlag Flag = 0b001
 	// If set to 1, the client notifies the server that it will send [SetCustomMiningJob] on this connection
-	RequiresWorkSelectionFlag = uint32(0b010)
+	RequiresWorkSelectionFlag Flag = 0b010
 	// The client requires version rolling for efficiency or correct operation and the
 	// server MUST NOT send jobs which do not allow version rolling
-	RequiresVersionRollingFlag = uint32(0b100)
+	RequiresVersionRollingFlag Flag = 0b100
 	// Upstream node will not accept any changes to the version field.
 	// Note that if [RequiresVersionRollingFlag] was set in the [SetupConnection.Flags] field,
 	// this bit MUST NOT be set.
 	// Further, if this bit is set, extended jobs MUST NOT indicate support for version rolling.
-	RequiresFixedVersionFlag = uint32(0b01)
+	RequiresFixedVersionFlag Flag = 0b01
 	// Upstream node will not accept opening of a standard channel
-	RequiresExtendedChannelsFlag = uint32(0b10)
+	RequiresExtendedChannelsFlag Flag = 0b10
 )
 
 type Bin32 = []byte
@@ -195,18 +197,18 @@ func (m *OpenExtendedMiningChannelSuccess) Decode(b []byte) error {
 // Possible errors: [UnknownUserError], [MaxTargetOutOfRangeError]
 type OpenMiningChannelError struct {
 	RequestID uint32 // Client-specified request ID from [Open*MiningChannel] message
-	ErrorCode string // Person-readable error code(s)
+	ErrorCode Error  // Person-readable error code(s)
 }
 
 func (m *OpenMiningChannelError) Encode() ([]byte, error) {
 	out := NewBinaryBuilder()
-	return out.AddU32(m.RequestID).AddStr255(m.ErrorCode).Bytes()
+	return out.AddU32(m.RequestID).AddStr255(string(m.ErrorCode)).Bytes()
 }
 func (m *OpenMiningChannelError) Decode(b []byte) error {
 	r := NewBinaryReader(b)
 
 	m.RequestID = r.ReadU32()
-	m.ErrorCode = r.ReadStr255()
+	m.ErrorCode = Error(r.ReadStr255())
 
 	return r.Error()
 }
@@ -250,21 +252,21 @@ func (m *UpdateChannel) Decode(b []byte) error {
 // When it is accepted by the server, no response is sent back.
 type UpdateChannelError struct {
 	ChannelID uint32
-	ErrorCode string // Person-readable error code(s)
+	ErrorCode Error // Person-readable error code(s)
 }
 
 func (m *UpdateChannelError) Encode() ([]byte, error) {
 	out := NewBinaryBuilder()
 
 	return out.AddU32(m.ChannelID).
-		AddStr255(m.ErrorCode).
+		AddStr255(string(m.ErrorCode)).
 		Bytes()
 }
 func (m *UpdateChannelError) Decode(b []byte) error {
 	r := NewBinaryReader(b)
 
 	m.ChannelID = r.ReadU32()
-	m.ErrorCode = r.ReadStr255()
+	m.ErrorCode = Error(r.ReadStr255())
 
 	return r.Error()
 }
@@ -444,13 +446,13 @@ func (m *SubmitSharesSuccess) Decode(b []byte) error {
 type SubmitSharesError struct {
 	ChannelID      uint32
 	SequenceNumber uint32 // Submission sequence number for which this error is returned
-	ErrorCode      string // Person-readable error code(s)
+	ErrorCode      Error  // Person-readable error code(s)
 }
 
 func (m *SubmitSharesError) Encode() ([]byte, error) {
 	out := NewBinaryBuilder()
 
-	out.AddU32(m.ChannelID).AddU32(m.SequenceNumber).AddStr255(m.ErrorCode)
+	out.AddU32(m.ChannelID).AddU32(m.SequenceNumber).AddStr255(string(m.ErrorCode))
 
 	return out.Bytes()
 }
@@ -459,7 +461,7 @@ func (m *SubmitSharesError) Decode(b []byte) error {
 
 	m.ChannelID = r.ReadU32()
 	m.SequenceNumber = r.ReadU32()
-	m.ErrorCode = r.ReadStr255()
+	m.ErrorCode = Error(r.ReadStr255())
 	return r.Error()
 }
 
@@ -758,21 +760,21 @@ type SetCustomMiningJobError struct {
 	// Client-specified identifier for pairing responses.
 	// Value from the request MUST be provided by upstream in the response message.
 	RequestID uint32
-	ErrorCode string // Reason why the custom job has been rejected
+	ErrorCode Error // Reason why the custom job has been rejected
 }
 
 func (m *SetCustomMiningJobError) Encode() ([]byte, error) {
 	out := NewBinaryBuilder()
 	return out.AddU32(m.ChannelID).
 		AddU32(m.RequestID).
-		AddStr255(m.ErrorCode).Bytes()
+		AddStr255(string(m.ErrorCode)).Bytes()
 }
 func (m *SetCustomMiningJobError) Decode(b []byte) error {
 	r := NewBinaryReader(b)
 
 	m.ChannelID = r.ReadU32()
 	m.RequestID = r.ReadU32()
-	m.ErrorCode = r.ReadStr255()
+	m.ErrorCode = Error(r.ReadStr255())
 	return r.Error()
 }
 
@@ -787,19 +789,19 @@ func (m *SetCustomMiningJobError) Decode(b []byte) error {
 // When SetTarget is sent to a group channel, the maximum target is applicable to all channels in the group.
 type SetTarget struct {
 	ChannelID uint32
-	MaxTarget chainhash.Hash // Maximum value of produced hash that will be accepted by a server to accept shares
+	MaxTarget U256 // Maximum value of produced hash that will be accepted by a server to accept shares
 }
 
 func (m *SetTarget) Encode() ([]byte, error) {
 	out := NewBinaryBuilder()
 	return out.AddU32(m.ChannelID).
-		AddU256(m.MaxTarget).Bytes()
+		AddU256(chainhash.Hash(m.MaxTarget)).Bytes()
 }
 func (m *SetTarget) Decode(b []byte) error {
 	r := NewBinaryReader(b)
 
 	m.ChannelID = r.ReadU32()
-	m.MaxTarget = r.ReadU256()
+	m.MaxTarget = U256(r.ReadU256())
 	return r.Error()
 }
 

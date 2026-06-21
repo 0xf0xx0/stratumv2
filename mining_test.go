@@ -1,9 +1,11 @@
 package stratumv2_test
 
 import (
+	"encoding/hex"
 	"testing"
 
 	"git.0xf0xx0.eth.limo/0xf0xx0/stratumv2"
+	"github.com/btcsuite/btcd/chaincfg/chainhash"
 )
 
 func TestExtendedJobDecode(t *testing.T) {
@@ -19,8 +21,28 @@ func TestExtendedJobDecode(t *testing.T) {
 	t.Logf("%+v", m)
 }
 
+func TestExtendedJobEncode(t *testing.T) {
+	cp1, _ := hex.DecodeString("00ff00ff00ff00ff00ff00fffe")
+	cp2, _ := hex.DecodeString("ff00ff00ff00ff00ff00ff00")
+	m := stratumv2.NewExtendedMiningJob{
+		ChannelID:             69,
+		JobID:                 420,
+		MinTime:               []uint32{546576875},
+		Version:               1,
+		MerklePath:            []chainhash.Hash{chainhash.DoubleHashH([]byte("foobar"))},
+		VersionRollingAllowed: true,
+		CoinbasePrefix:        cp1,
+		CoinbaseSuffix:        cp2,
+	}
+	b, err := m.Encode()
+	if err != nil {
+		t.Fatal(err.Error())
+	}
+	t.Logf("%x", b)
+}
+
 func TestExtendedSubmitDecode(t *testing.T) {
-	b := hexDec("00801b1f00002d000000060000001f1e2f01a18a144c53f5256a00e00a200600000000000a")
+	b := hexDec("00801b230000370000000000000092aa1300d3bee007bb48376a00c008200a00000000000000000001")
 	f := stratumv2.Frame{}
 	m := stratumv2.SubmitSharesExtended{}
 	if err := f.Decode(b); err != nil {

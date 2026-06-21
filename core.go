@@ -5,8 +5,6 @@ import (
 	"io"
 )
 
-type Protocol = uint8
-
 const (
 	MiningProtocol Protocol = iota
 	JobDeclarationProtocol
@@ -111,6 +109,7 @@ func (t *TLV) Decode(b []byte) error {
 type Codable interface {
 	Encode() ([]byte, error)
 	Decode([]byte) error
+	// MAYBE: String() string for pretty-printing?
 }
 
 func encodeTLVs(tlvs []TLV) ([]byte, error) {
@@ -150,7 +149,7 @@ type SetupConnection struct {
 
 func (m *SetupConnection) Encode() ([]byte, error) {
 	out := NewBinaryBuilder()
-	out.AddU8(m.Protocol).
+	out.AddU8(uint8(m.Protocol)).
 		AddU16(m.MinVersion).
 		AddU16(m.MaxVersion).
 		AddU32(m.Flags).
@@ -165,7 +164,7 @@ func (m *SetupConnection) Encode() ([]byte, error) {
 }
 func (m *SetupConnection) Decode(b []byte) error {
 	r := NewBinaryReader(b)
-	m.Protocol = r.ReadU8()
+	m.Protocol = Protocol(r.ReadU8())
 	m.MinVersion = r.ReadU16()
 	m.MaxVersion = r.ReadU16()
 	m.Flags = r.ReadU32()
@@ -199,19 +198,19 @@ func (m *SetupConnectionSuccess) Decode(b []byte) error {
 // Possible errors: [UnsupportedFeatureFlagsError], [UnsupportedProtocolError], [ProtocolVersionMismatchError]
 type SetupConnectionError struct {
 	Flags     uint32 // Flags indicating features causing an error
-	ErrorCode string // Person-readable error code(s)
+	ErrorCode Error  // Person-readable error code(s)
 }
 
 func (m *SetupConnectionError) Encode() ([]byte, error) {
 	return NewBinaryBuilder().
 		AddU32(m.Flags).
-		AddStr255(m.ErrorCode).
+		AddStr255(string(m.ErrorCode)).
 		Bytes()
 }
 func (m *SetupConnectionError) Decode(b []byte) error {
 	r := NewBinaryReader(b)
 	m.Flags = r.ReadU32()
-	m.ErrorCode = r.ReadStr255()
+	m.ErrorCode = Error(r.ReadStr255())
 	return r.Error()
 }
 

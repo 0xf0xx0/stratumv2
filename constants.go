@@ -1,7 +1,5 @@
 package stratumv2
 
-type Method = uint8
-
 const (
 	MethodSetupConnection Method = iota
 	MethodSetupConnectionSuccess
@@ -49,13 +47,10 @@ const (
 )
 
 const (
-	UnsupportedFeatureFlagsError = "unsupported-feature-flags"
-	UnsupportedProtocolError     = "unsupported-protocol"
-	ProtocolVersionMismatchError = "protocol-version-mismatch"
+	UnsupportedFeatureFlagsError Error = "unsupported-feature-flags"
+	UnsupportedProtocolError     Error = "unsupported-protocol"
+	ProtocolVersionMismatchError Error = "protocol-version-mismatch"
 )
-
-// 3.4
-type Extension = uint16
 
 const (
 	ExtensionTypeMinValid Extension = 0x4000
