@@ -299,10 +299,13 @@ func (br *BinaryReader) ReadBool() bool {
 		return false
 	}
 
-	b := br.read(1)[0]
-	if b == 1 {
+	b := br.read(1)
+	if b == nil {
+		return false
+	}
+	if b[0] == 1 {
 		return true
-	} else if b == 0 {
+	} else if b[0] == 0 {
 		return false
 	}
 
@@ -313,19 +316,30 @@ func (br *BinaryReader) ReadU8() uint8 {
 	if br.err != nil {
 		return 0
 	}
-	return uint8(br.read(1)[0])
+	b := br.read(1)
+	if b == nil {
+		return 0
+	}
+	return uint8(b[0])
 }
 func (br *BinaryReader) ReadU16() uint16 {
 	if br.err != nil {
 		return 0
 	}
-	return ble.Uint16(br.read(2))
+	b := br.read(2)
+	if b == nil {
+		return 0
+	}
+	return ble.Uint16(b)
 }
 func (br *BinaryReader) ReadU24() uint32 {
 	if br.err != nil {
 		return 0
 	}
 	b := br.read(3)
+	if b == nil {
+		return 0
+	}
 	b = append(make([]byte, 0, 4), b...)
 	b = append(b, 0)
 
@@ -335,20 +349,32 @@ func (br *BinaryReader) ReadU32() uint32 {
 	if br.err != nil {
 		return 0
 	}
-	return ble.Uint32(br.read(4))
+	b := br.read(4)
+	if b == nil {
+		return 0
+	}
+	return ble.Uint32(b)
 }
 func (br *BinaryReader) ReadU64() uint64 {
 	if br.err != nil {
 		return 0
 	}
-	return ble.Uint64(br.read(8))
+	b := br.read(8)
+	if b == nil {
+		return 0
+	}
+	return ble.Uint64(b)
 }
 func (br *BinaryReader) ReadU256() chainhash.Hash {
 	h := chainhash.Hash{}
 	if br.err != nil {
 		return h
 	}
-	br.err = h.SetBytes(br.read(32))
+	b := br.read(32)
+	if b == nil {
+		return h
+	}
+	br.err = h.SetBytes(b)
 	return h
 }
 
@@ -356,7 +382,11 @@ func (br *BinaryReader) ReadF32() float32 {
 	if br.err != nil {
 		return 0
 	}
-	return math.Float32frombits(ble.Uint32(br.read(4)))
+	b := br.read(4)
+	if b == nil {
+		return 0
+	}
+	return math.Float32frombits(ble.Uint32(b))
 }
 
 func (br *BinaryReader) ReadOptionT(dest Sequence) Sequence {
@@ -364,6 +394,9 @@ func (br *BinaryReader) ReadOptionT(dest Sequence) Sequence {
 }
 
 func (br *BinaryReader) ReadSeq1(dest Sequence) Sequence {
+	if br.err != nil {
+		return nil
+	}
 	l := br.ReadU8()
 	if l > 1 {
 		br.err = errors.New("ReadSeq1: len > 1")
@@ -377,6 +410,9 @@ func (br *BinaryReader) ReadSeq1(dest Sequence) Sequence {
 	return n
 }
 func (br *BinaryReader) ReadSeq255(dest Sequence) Sequence {
+	if br.err != nil {
+		return nil
+	}
 	l := br.ReadU8()
 	n, err := dest.Decode(int(l), br)
 	if err != nil {
@@ -386,6 +422,9 @@ func (br *BinaryReader) ReadSeq255(dest Sequence) Sequence {
 	return n
 }
 func (br *BinaryReader) ReadSeq64K(dest Sequence) Sequence {
+	if br.err != nil {
+		return nil
+	}
 	l := br.ReadU16()
 	n, err := dest.Decode(int(l), br)
 	if err != nil {
