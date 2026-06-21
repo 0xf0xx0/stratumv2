@@ -283,6 +283,7 @@ func (br *BinaryReader) read(l int) []byte {
 	}
 	if br.pos+l > len(br.data) {
 		br.err = errors.New("BinaryReader: EOF: can't read past end of data")
+		br.pos = len(br.data)
 		return br.data[br.pos:]
 	}
 	b := br.data[br.pos : br.pos+l]
@@ -487,14 +488,10 @@ func (br *BinaryReader) Read(dest []byte) (int, error) {
 	}
 	l := len(dest)
 	if l <= 0 {
-		return l, io.EOF
+		return 0, io.EOF
 	}
-	bytesRead := 0
-	for i, b := range br.read(l) {
-		dest[i] = b
-		bytesRead = i
-	}
-	return bytesRead, br.err
+	l = copy(dest, br.read(l))
+	return l, br.err
 }
 
 func NewBinaryReader(bin []byte) *BinaryReader {
