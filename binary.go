@@ -13,6 +13,8 @@ const (
 	limit16m = 2 ^ 24 - 1
 )
 
+// BinaryBuilder provides helpers for encoding Stratum V2 datatypes.
+//
 // inspired by txscript.ScriptBuilder from btcd, and strings.StringBuilder
 type BinaryBuilder struct {
 	data []byte
@@ -267,6 +269,8 @@ func NewBinaryBuilder() *BinaryBuilder {
 	}
 }
 
+// BinaryReader wraps a []byte and provides helpers for reading Stratum V2 datatypes.
+// It implements [io.Seeker] and [io.Reader].
 type BinaryReader struct {
 	data []byte
 	pos  int
@@ -492,6 +496,28 @@ func (br *BinaryReader) Read(dest []byte) (int, error) {
 	}
 	l = copy(dest, br.read(l))
 	return l, br.err
+}
+
+// [io.Seeker] impl
+func (br *BinaryReader) Seek(offset int64, whence int) (int64, error) {
+	if br.err != nil {
+		return 0, br.err
+	}
+	newPos := int(offset)
+	switch whence {
+	case io.SeekStart:
+		newPos = int(offset)
+	case io.SeekCurrent:
+		newPos += br.pos
+	case io.SeekEnd:
+		newPos = len(br.data) - int(offset)
+	}
+	if newPos < 0 || newPos > len(br.data) {
+		br.err = errors.New("Seek: out of bounds")
+		return 0, br.err
+	}
+	br.pos = newPos
+	return int64(newPos), nil
 }
 
 func NewBinaryReader(bin []byte) *BinaryReader {
