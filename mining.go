@@ -73,6 +73,7 @@ type OpenStandardMiningChannel struct {
 func (m *OpenStandardMiningChannel) Encode() ([]byte, error) {
 	out := NewBinaryBuilder()
 	return out.
+		Grow(64).
 		AddU32(m.RequestID).
 		AddStr255(m.UserIdentity).
 		AddF32(m.NominalHashRate).
@@ -113,6 +114,7 @@ func (m *OpenStandardMiningChannelSuccess) Encode() ([]byte, error) {
 	out := NewBinaryBuilder()
 
 	return out.
+		Grow(72).
 		AddU32(m.RequestID).
 		AddU32(m.ChannelID).
 		AddU256(m.Target).
@@ -146,7 +148,7 @@ func (m *OpenExtendedMiningChannel) Encode() ([]byte, error) {
 	if err != nil {
 		return nil, err
 	}
-	return out.AddBytes(b).
+	return out.Grow(72).AddBytes(b).
 		AddU16(m.MinExtranonceSize).
 		Bytes()
 }
@@ -177,7 +179,7 @@ func (m *OpenExtendedMiningChannelSuccess) Encode() ([]byte, error) {
 		return nil, err
 	}
 
-	return out.AddBytes(b).
+	return out.Grow(80).AddBytes(b).
 		AddU16(m.ExtranonceSize).
 		Bytes()
 }
@@ -202,7 +204,7 @@ type OpenMiningChannelError struct {
 
 func (m *OpenMiningChannelError) Encode() ([]byte, error) {
 	out := NewBinaryBuilder()
-	return out.AddU32(m.RequestID).AddStr255(string(m.ErrorCode)).Bytes()
+	return out.Grow(24).AddU32(m.RequestID).AddStr255(string(m.ErrorCode)).Bytes()
 }
 func (m *OpenMiningChannelError) Decode(b []byte) error {
 	r := NewBinaryReader(b)
@@ -233,7 +235,7 @@ type UpdateChannel struct {
 func (m *UpdateChannel) Encode() ([]byte, error) {
 	out := NewBinaryBuilder()
 
-	return out.AddU32(m.ChannelID).
+	return out.Grow(40).AddU32(m.ChannelID).
 		AddF32(m.NominalHashRate).
 		AddU256(m.MaxTarget).
 		Bytes()
@@ -258,7 +260,7 @@ type UpdateChannelError struct {
 func (m *UpdateChannelError) Encode() ([]byte, error) {
 	out := NewBinaryBuilder()
 
-	return out.AddU32(m.ChannelID).
+	return out.Grow(24).AddU32(m.ChannelID).
 		AddStr255(string(m.ErrorCode)).
 		Bytes()
 }
@@ -289,7 +291,7 @@ type CloseChannel struct {
 
 func (m *CloseChannel) Encode() ([]byte, error) {
 	out := NewBinaryBuilder()
-	return out.AddU32(m.ChannelID).AddStr255(m.ReasonCode).Bytes()
+	return out.Grow(24).AddU32(m.ChannelID).AddStr255(m.ReasonCode).Bytes()
 }
 func (m *CloseChannel) Decode(b []byte) error {
 	r := NewBinaryReader(b)
@@ -311,7 +313,7 @@ type SetExtranoncePrefix struct {
 
 func (m *SetExtranoncePrefix) Encode() ([]byte, error) {
 	out := NewBinaryBuilder()
-	return out.AddU32(m.ChannelID).AddBin32(m.ExtranoncePrefix).Bytes()
+	return out.Grow(32).AddU32(m.ChannelID).AddBin32(m.ExtranoncePrefix).Bytes()
 }
 func (m *SetExtranoncePrefix) Decode(b []byte) error {
 	r := NewBinaryReader(b)
@@ -339,7 +341,8 @@ type SubmitSharesStandard struct {
 func (m *SubmitSharesStandard) Encode() ([]byte, error) {
 	out := NewBinaryBuilder()
 
-	out.AddU32(m.ChannelID).
+	out.Grow(24).
+		AddU32(m.ChannelID).
 		AddU32(m.Sequence).
 		AddU32(m.JobID).
 		AddU32(m.Nonce).
@@ -370,7 +373,7 @@ type SubmitSharesExtended struct {
 }
 
 func (m *SubmitSharesExtended) Encode() ([]byte, error) {
-	out := NewBinaryBuilder()
+	out := NewBinaryBuilder().Grow(48)
 
 	b, err := m.SubmitSharesStandard.Encode()
 	if err != nil {
@@ -415,7 +418,7 @@ type SubmitSharesSuccess struct {
 }
 
 func (m *SubmitSharesSuccess) Encode() ([]byte, error) {
-	out := NewBinaryBuilder()
+	out := NewBinaryBuilder().Grow(24)
 
 	out.AddU32(m.ChannelID).
 		AddU32(m.LastSequenceNumber).
@@ -450,7 +453,7 @@ type SubmitSharesError struct {
 }
 
 func (m *SubmitSharesError) Encode() ([]byte, error) {
-	out := NewBinaryBuilder()
+	out := NewBinaryBuilder().Grow(24)
 
 	out.AddU32(m.ChannelID).AddU32(m.SequenceNumber).AddStr255(string(m.ErrorCode))
 
@@ -482,7 +485,7 @@ type NewMiningJob struct {
 }
 
 func (m *NewMiningJob) Encode() ([]byte, error) {
-	out := NewBinaryBuilder()
+	out := NewBinaryBuilder().Grow(72)
 
 	out.AddU32(m.ChannelID).
 		AddU32(m.JobID).
@@ -573,7 +576,7 @@ type NewExtendedMiningJob struct {
 }
 
 func (m *NewExtendedMiningJob) Encode() ([]byte, error) {
-	out := NewBinaryBuilder()
+	out := NewBinaryBuilder().Grow(120)
 
 	out.AddU32(m.ChannelID).
 		AddU32(m.JobID).
@@ -619,7 +622,7 @@ type SetNewPrevHash struct {
 }
 
 func (m *SetNewPrevHash) Encode() ([]byte, error) {
-	out := NewBinaryBuilder()
+	out := NewBinaryBuilder().Grow(48)
 
 	out.AddU32(m.ChannelID).
 		AddU32(m.JobID).
@@ -669,14 +672,15 @@ type SetCustomMiningJob struct {
 
 func (m *SetCustomMiningJob) Encode() ([]byte, error) {
 	coinbaseOutputs := make([]byte, 0, len(m.CoinbaseOutputs)*256)
-
 	for _, txout := range m.CoinbaseOutputs {
 		var buf bytes.Buffer
 		buf.Grow(txout.SerializeSize())
 		wire.WriteTxOut(&buf, uint32(wire.LatestEncoding), int32(m.CoinbaseVersion), &txout)
 		coinbaseOutputs = append(coinbaseOutputs, buf.Bytes()...)
 	}
+
 	out := NewBinaryBuilder().
+		Grow(2048).
 		AddU32(m.ChannelID).
 		AddU32(m.RequestID).
 		AddBin255(m.MiningJobToken).
@@ -741,7 +745,7 @@ type SetCustomMiningJobSuccess struct {
 
 func (m *SetCustomMiningJobSuccess) Encode() ([]byte, error) {
 	out := NewBinaryBuilder()
-	return out.AddU32(m.ChannelID).
+	return out.Grow(12).AddU32(m.ChannelID).
 		AddU32(m.RequestID).
 		AddU32(m.JobID).Bytes()
 }
@@ -765,7 +769,7 @@ type SetCustomMiningJobError struct {
 
 func (m *SetCustomMiningJobError) Encode() ([]byte, error) {
 	out := NewBinaryBuilder()
-	return out.AddU32(m.ChannelID).
+	return out.Grow(16 + 255).AddU32(m.ChannelID).
 		AddU32(m.RequestID).
 		AddStr255(string(m.ErrorCode)).Bytes()
 }
@@ -794,7 +798,7 @@ type SetTarget struct {
 
 func (m *SetTarget) Encode() ([]byte, error) {
 	out := NewBinaryBuilder()
-	return out.AddU32(m.ChannelID).
+	return out.Grow(36).AddU32(m.ChannelID).
 		AddU256(chainhash.Hash(m.MaxTarget)).Bytes()
 }
 func (m *SetTarget) Decode(b []byte) error {
@@ -825,7 +829,7 @@ type SetGroupChannel struct {
 
 func (m *SetGroupChannel) Encode() ([]byte, error) {
 	out := NewBinaryBuilder()
-	return out.AddU32(m.GroupChannelID).
+	return out.Grow(32).AddU32(m.GroupChannelID).
 		AddSeq64K(U32Sequence(m.ChannelIDs)).Bytes()
 }
 func (m *SetGroupChannel) Decode(b []byte) error {

@@ -109,8 +109,8 @@ func (bb *BinaryBuilder) AddU256(u chainhash.Hash) *BinaryBuilder {
 	if bb.err != nil {
 		return bb
 	}
-
-	bb.data = append(bb.data, u[:]...)
+	bb.Grow(32)
+	bb.AddBytes(u[:])
 	return bb
 }
 func (bb *BinaryBuilder) AddStr255(s string) *BinaryBuilder {
@@ -123,9 +123,8 @@ func (bb *BinaryBuilder) AddStr255(s string) *BinaryBuilder {
 		return bb
 	}
 
-	bb.data = append(bb.data, uint8(l))
-	bb.data = append(bb.data, s...)
-	return bb
+	return bb.Grow(l + 1).
+		AddU8(uint8(l)).AddBytes([]byte(s))
 }
 func (bb *BinaryBuilder) AddF32(f float32) *BinaryBuilder {
 	if bb.err != nil {
@@ -146,9 +145,8 @@ func (bb *BinaryBuilder) AddBin32(s []byte) *BinaryBuilder {
 		return bb
 	}
 
-	bb.data = append(bb.data, uint8(l))
-	bb.data = append(bb.data, s...)
-	return bb
+	return bb.Grow(l + 1).
+		AddU8(uint8(l)).AddBytes(s)
 }
 func (bb *BinaryBuilder) AddBin255(s []byte) *BinaryBuilder {
 	if bb.err != nil {
@@ -160,9 +158,8 @@ func (bb *BinaryBuilder) AddBin255(s []byte) *BinaryBuilder {
 		return bb
 	}
 
-	bb.data = append(bb.data, uint8(l))
-	bb.data = append(bb.data, s...)
-	return bb
+	return bb.Grow(l + 1).
+		AddU8(uint8(l)).AddBytes(s)
 }
 func (bb *BinaryBuilder) AddBin64K(s []byte) *BinaryBuilder {
 	if bb.err != nil {
@@ -174,9 +171,8 @@ func (bb *BinaryBuilder) AddBin64K(s []byte) *BinaryBuilder {
 		return bb
 	}
 
-	bb.data = ble.AppendUint16(bb.data, uint16(l))
-	bb.data = append(bb.data, s...)
-	return bb
+	return bb.Grow(l + 2).
+		AddU16(uint16(l)).AddBytes(s)
 }
 func (bb *BinaryBuilder) AddBin16M(s []byte) *BinaryBuilder {
 	if bb.err != nil {
@@ -188,9 +184,9 @@ func (bb *BinaryBuilder) AddBin16M(s []byte) *BinaryBuilder {
 		return bb
 	}
 
-	bb.AddU24(U24(l))
-	bb.data = append(bb.data, s...)
-	return bb
+	return bb.Grow(l + 3).
+		AddU24(U24(l)).
+		AddBytes(s)
 }
 
 // TODO: use mac
@@ -235,14 +231,14 @@ func (bb *BinaryBuilder) AddSeq1(things Sequence) *BinaryBuilder {
 		bb.err = errors.New("AddSeq1: len > 1")
 		return bb
 	}
-	bb.data = append(bb.data, uint8(l))
 	enc, err := things.Encode()
 	if err != nil {
 		bb.err = err
 		return bb
 	}
-	bb.data = append(bb.data, enc...)
-	return bb
+	return bb.Grow(len(enc) + 1).
+		AddU8(uint8(l)).
+		AddBytes(enc)
 }
 func (bb *BinaryBuilder) AddSeq255(things Sequence) *BinaryBuilder {
 	if bb.err != nil {
@@ -253,14 +249,14 @@ func (bb *BinaryBuilder) AddSeq255(things Sequence) *BinaryBuilder {
 		bb.err = errors.New("AddSeq255: len > 255")
 		return bb
 	}
-	bb.data = append(bb.data, uint8(l))
 	enc, err := things.Encode()
 	if err != nil {
 		bb.err = err
 		return bb
 	}
-	bb.data = append(bb.data, enc...)
-	return bb
+	return bb.Grow(len(enc) + 1).
+		AddU8(uint8(l)).
+		AddBytes(enc)
 }
 func (bb *BinaryBuilder) AddSeq64K(things Sequence) *BinaryBuilder {
 	if bb.err != nil {
@@ -271,14 +267,14 @@ func (bb *BinaryBuilder) AddSeq64K(things Sequence) *BinaryBuilder {
 		bb.err = errors.New("AddSeq64K: len > 65535")
 		return bb
 	}
-	bb.AddU16(uint16(l))
 	enc, err := things.Encode()
 	if err != nil {
 		bb.err = err
 		return bb
 	}
-	bb.data = append(bb.data, enc...)
-	return bb
+	return bb.Grow(len(enc) + 2).
+		AddU16(uint16(l)).
+		AddBytes(enc)
 }
 
 func (bb *BinaryBuilder) AddBytes(bin []byte) *BinaryBuilder {
