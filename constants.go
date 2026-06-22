@@ -1,8 +1,22 @@
 package stratumv2
 
-import "encoding/binary"
+import (
+	"encoding/binary"
+)
 
 var ble = binary.LittleEndian
+
+const (
+	// ProtocolVersion is the latest protocol version this package supports.
+	ProtocolVersion   = 2
+	MaxNoiseFrameSize = 2<<16 - 1
+	// Serialized stratum-v2 body (payload) is split into 65519-byte chunks and encrypted to form 65535-bytes AEAD ciphertexts
+	ChunkSize         = 65519
+	MaxPlainFrameSize = MaxNoiseFrameSize - MacLen
+	NoiseHeaderSize   = 22
+	FrameHeaderSize   = 6
+	MacLen            = 16
+)
 
 const (
 	MethodSetupConnection Method = iota

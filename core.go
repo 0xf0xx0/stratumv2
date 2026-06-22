@@ -44,6 +44,8 @@ func (f *Frame) Encode() ([]byte, error) {
 
 	return out.Bytes()
 }
+
+// Decode decodes the full frame from the given byte slice.
 func (f *Frame) Decode(b []byte) error {
 	r := NewBinaryReader(b)
 	f.ExtensionType = r.ReadU16()
@@ -53,6 +55,8 @@ func (f *Frame) Decode(b []byte) error {
 	f.Payload = r.ReadBytes(int(f.MessageLength))
 	return r.Error()
 }
+
+// DecodeHeader decodes just the frame header from the given byte slice.
 func (f *Frame) DecodeHeader(b []byte) error {
 	r := NewBinaryReader(b)
 	f.ExtensionType = r.ReadU16()
@@ -103,15 +107,7 @@ func (t *TLV) Decode(b []byte) error {
 	return r.Error()
 }
 
-/// MAYBE: move messages to subpackage?
-
-// most structs implement this interface
-type Codable interface {
-	Encode() ([]byte, error)
-	Decode([]byte) error
-	// MAYBE: String() string for pretty-printing?
-}
-
+// TODO: wtf do i do with tlvs???
 func encodeTLVs(tlvs []TLV) ([]byte, error) {
 	out := make([]byte, len(tlvs)*255)
 	for _, tlv := range tlvs {
@@ -137,7 +133,7 @@ type SetupConnection struct {
 	MaxVersion uint16   // The maximum protocol version the client supports (currently must be 2)
 	// Flags indicating optional protocol features the client supports.
 	// Each protocol from protocol field as its own values/flags.
-	Flags                 uint32
+	Flags                 Flag
 	EndpointPort          uint16 // Connecting port value
 	EndpointHost          string // ASCII text indicating the hostname or IP address, truncated at 255 chars
 	DeviceVendor          string // E.g. "Bitaxe"
@@ -152,7 +148,7 @@ func (m *SetupConnection) Encode() ([]byte, error) {
 	out.AddU8(uint8(m.Protocol)).
 		AddU16(m.MinVersion).
 		AddU16(m.MaxVersion).
-		AddU32(m.Flags).
+		AddU32(uint32(m.Flags)).
 		AddStr255(m.EndpointHost).
 		AddU16(m.EndpointPort).
 		AddStr255(m.DeviceVendor).
@@ -167,7 +163,7 @@ func (m *SetupConnection) Decode(b []byte) error {
 	m.Protocol = Protocol(r.ReadU8())
 	m.MinVersion = r.ReadU16()
 	m.MaxVersion = r.ReadU16()
-	m.Flags = r.ReadU32()
+	m.Flags = Flag(r.ReadU32())
 	m.EndpointHost = r.ReadStr255()
 	m.EndpointPort = r.ReadU16()
 	m.DeviceVendor = r.ReadStr255()
@@ -179,37 +175,37 @@ func (m *SetupConnection) Decode(b []byte) error {
 
 type SetupConnectionSuccess struct {
 	UsedVersion uint16 // Selected version proposed by the connecting node that the upstream node supports. This version will be used on the connection for the rest of its life.
-	Flags       uint32 // Flags indicating optional protocol features the server supports. Each protocol from protocol field has its own values/flags.
+	Flags       Flag   // Flags indicating optional protocol features the server supports. Each protocol from protocol field has its own values/flags.
 }
 
 func (m *SetupConnectionSuccess) Encode() ([]byte, error) {
 	return NewBinaryBuilder().
 		AddU16(m.UsedVersion).
-		AddU32(m.Flags).
+		AddU32(uint32(m.Flags)).
 		Bytes()
 }
 func (m *SetupConnectionSuccess) Decode(b []byte) error {
 	r := NewBinaryReader(b)
 	m.UsedVersion = r.ReadU16()
-	m.Flags = r.ReadU32()
+	m.Flags = Flag(r.ReadU32())
 	return r.Error()
 }
 
 // Possible errors: [UnsupportedFeatureFlagsError], [UnsupportedProtocolError], [ProtocolVersionMismatchError]
 type SetupConnectionError struct {
-	Flags     uint32 // Flags indicating features causing an error
-	ErrorCode Error  // Person-readable error code(s)
+	Flags     Flag  // Flags indicating features causing an error
+	ErrorCode Error // Person-readable error code(s)
 }
 
 func (m *SetupConnectionError) Encode() ([]byte, error) {
 	return NewBinaryBuilder().
-		AddU32(m.Flags).
+		AddU32(uint32(m.Flags)).
 		AddStr255(string(m.ErrorCode)).
 		Bytes()
 }
 func (m *SetupConnectionError) Decode(b []byte) error {
 	r := NewBinaryReader(b)
-	m.Flags = r.ReadU32()
+	m.Flags = Flag(r.ReadU32())
 	m.ErrorCode = Error(r.ReadStr255())
 	return r.Error()
 }

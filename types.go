@@ -13,7 +13,7 @@ import (
 type Protocol uint8
 type Method uint8
 type Error string
-type Flag uint32
+type Flag uint32 // MAYBE: add helpers for setting/clearing bits?
 
 // 3.4
 type Extension = uint16
