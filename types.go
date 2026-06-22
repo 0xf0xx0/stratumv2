@@ -14,6 +14,10 @@ type Protocol uint8
 type Method uint8
 type Error string
 type Flag uint32 // MAYBE: add helpers for setting/clearing bits?
+// U24 is the set of all unsigned 24-bit integers.
+// Range: 0 through 16777215.
+// The top byte gets dropped during encoding.
+type U24 uint32
 
 // 3.4
 type Extension = uint16
@@ -97,7 +101,7 @@ func (a U16Sequence) Len() int {
 	return len(a)
 }
 
-type U24Sequence []uint32
+type U24Sequence []U24
 
 func (a U24Sequence) Encode() ([]byte, error) {
 	out := NewBinaryBuilder()

@@ -53,7 +53,7 @@ func TestSetupConnectionSuccessEncode(t *testing.T) {
 	f := stratumv2.Frame{
 		ExtensionType: stratumv2.ExtensionTypeCore,
 		MessageType:   stratumv2.MethodSetupConnectionSuccess,
-		MessageLength: uint32(len(b)),
+		MessageLength: stratumv2.U24(len(b)),
 		Payload:       b,
 	}
 	fb, err := f.Encode()

@@ -24,23 +24,34 @@ type Frame struct {
 	// Unique identifier of this protocol message
 	MessageType Method
 	// Length of the protocol message, not including this header
-	MessageLength uint32 // NOTE: handled as u24
+	MessageLength U24
 	// Message-specific payload of length MessageLength.
 	// If the MSB in ExtensionType (the `channel_msg` bit) is set the first
 	// four bytes are defined as a U32 "channel_id", though this definition is
 	// repeated in the message definitions below and these 4 bytes are included in MessageLength.
 	Payload []byte // MAYBE: make Message interface? would that fuck up the current handling?
+	TLVs    []TLV  // appended to Payload on .Encode()
 }
 
 func (f *Frame) Encode() ([]byte, error) {
 	if int(f.MessageLength) != len(f.Payload) {
 		return nil, errors.New("Frame.Encode: MessageLength != len(Payload)")
 	}
-	out := NewBinaryBuilder()
+	out := NewBinaryBuilder().Grow(int(f.MessageLength))
 	out.AddU16(f.ExtensionType).
 		AddU8(uint8(f.MessageType)).
 		AddU24(f.MessageLength).
 		AddBytes(f.Payload)
+	if f.TLVs != nil {
+		for _, tlv := range f.TLVs {
+			enc, err := tlv.Encode()
+			if err != nil {
+				return nil, err
+			}
+			out.AddBytes(enc)
+		}
+		f.MessageLength = U24(out.Len())
+	}
 
 	return out.Bytes()
 }
@@ -86,8 +97,7 @@ func (f *Frame) DecodeFromReader(r io.Reader) error {
 type TLV struct {
 	// Identifies the TLV field.
 	// The first 2 bytes represent the extension_type, and the third byte represents the field_type within the extension context.
-	// NOTE: handled as u24
-	Type   uint32
+	Type   U24
 	Length uint16 // Indicates the size (in bytes) of the Value field.
 	Value  []byte // The actual data of the extension field, of variable length.
 }
@@ -101,23 +111,10 @@ func (t *TLV) Encode() ([]byte, error) {
 }
 func (t *TLV) Decode(b []byte) error {
 	r := NewBinaryReader(b)
-	t.Type = r.ReadU32()
+	t.Type = r.ReadU24()
 	t.Length = r.ReadU16()
 	t.Value = r.ReadBytes(int(t.Length))
 	return r.Error()
-}
-
-// TODO: wtf do i do with tlvs???
-func encodeTLVs(tlvs []TLV) ([]byte, error) {
-	out := make([]byte, len(tlvs)*255)
-	for _, tlv := range tlvs {
-		b, err := tlv.Encode()
-		if err != nil {
-			return nil, err
-		}
-		out = append(out, b...)
-	}
-	return out, nil
 }
 
 // SetupConnection MUST be the first message sent by the client on the newly opened connection.
@@ -140,11 +137,10 @@ type SetupConnection struct {
 	DeviceHardwareVersion string // E.g. "BM1370"
 	DeviceFirmware        string // E.g. "esp-miner v2.14.0"
 	DeviceID              string // Unique identifier of the device as defined by the vendor
-	TLVs                  []TLV  // FIXME: wtf do i do with this
 }
 
 func (m *SetupConnection) Encode() ([]byte, error) {
-	out := NewBinaryBuilder()
+	out := NewBinaryBuilder().Grow(256)
 	out.AddU8(uint8(m.Protocol)).
 		AddU16(m.MinVersion).
 		AddU16(m.MaxVersion).
@@ -180,6 +176,7 @@ type SetupConnectionSuccess struct {
 
 func (m *SetupConnectionSuccess) Encode() ([]byte, error) {
 	return NewBinaryBuilder().
+		Grow(6).
 		AddU16(m.UsedVersion).
 		AddU32(uint32(m.Flags)).
 		Bytes()
@@ -199,6 +196,7 @@ type SetupConnectionError struct {
 
 func (m *SetupConnectionError) Encode() ([]byte, error) {
 	return NewBinaryBuilder().
+		Grow(259).
 		AddU32(uint32(m.Flags)).
 		AddStr255(string(m.ErrorCode)).
 		Bytes()
@@ -247,7 +245,7 @@ type Reconnect struct {
 }
 
 func (m *Reconnect) Encode() ([]byte, error) {
-	return NewBinaryBuilder().AddStr255(m.NewHost).AddU16(m.NewPort).Bytes()
+	return NewBinaryBuilder().Grow(257).AddStr255(m.NewHost).AddU16(m.NewPort).Bytes()
 }
 func (m *Reconnect) Decode(b []byte) error {
 	r := NewBinaryReader(b)

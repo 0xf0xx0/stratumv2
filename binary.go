@@ -21,15 +21,38 @@ type BinaryBuilder struct {
 	err  error
 }
 
+// like [strings.Builder.Grow], but doesnt panic when size is negative or zero
 func (bb *BinaryBuilder) Grow(size int) *BinaryBuilder {
-	bb.data = make([]byte, 0, size)
+	if size <= 0 {
+		return bb
+	}
+
+	l := len(bb.data)
+	c := cap(bb.data)
+	if c-l < size {
+		newData := make([]byte, 0, size)
+		copy(newData, bb.data)
+		bb.data = newData
+	}
 	return bb
 }
+
+// like [github.com/btcsuite/btcd/txscript.ScriptBuilder.Script]
+//
+// Bytes returns the encoded bytes.
+// If an error occurred during encoding,
+// the encoded bytes will be returned up the point of the first error along with the error.
 func (bb *BinaryBuilder) Bytes() ([]byte, error) {
 	if bb.err != nil {
-		return nil, bb.err
+		return bb.data, bb.err
 	}
 	return bb.data, nil
+}
+func (bb *BinaryBuilder) Len() int {
+	return len(bb.data)
+}
+func (bb *BinaryBuilder) Cap() int {
+	return cap(bb.data)
 }
 
 func (bb *BinaryBuilder) AddBool(boo bool) *BinaryBuilder {
@@ -58,11 +81,11 @@ func (bb *BinaryBuilder) AddU16(u uint16) *BinaryBuilder {
 	bb.data = ble.AppendUint16(bb.data, u)
 	return bb
 }
-func (bb *BinaryBuilder) AddU24(u uint32) *BinaryBuilder {
+func (bb *BinaryBuilder) AddU24(u U24) *BinaryBuilder {
 	if bb.err != nil {
 		return bb
 	}
-	enc := ble.AppendUint32(make([]byte, 0, 4), u)
+	enc := ble.AppendUint32(make([]byte, 0, 4), uint32(u))
 	bb.data = append(bb.data, enc[:3]...) // ignore the top byte
 	return bb
 }
@@ -165,7 +188,7 @@ func (bb *BinaryBuilder) AddBin16M(s []byte) *BinaryBuilder {
 		return bb
 	}
 
-	bb.AddU24(uint32(l))
+	bb.AddU24(U24(l))
 	bb.data = append(bb.data, s...)
 	return bb
 }
@@ -280,6 +303,9 @@ type BinaryReader struct {
 func (br *BinaryReader) Error() error {
 	return br.err
 }
+func (br *BinaryReader) Remaining() int {
+	return len(br.data) - br.pos
+}
 
 func (br *BinaryReader) read(l int) []byte {
 	if br.err != nil {
@@ -332,7 +358,7 @@ func (br *BinaryReader) ReadU16() uint16 {
 	}
 	return ble.Uint16(b)
 }
-func (br *BinaryReader) ReadU24() uint32 {
+func (br *BinaryReader) ReadU24() U24 {
 	if br.err != nil {
 		return 0
 	}
@@ -343,7 +369,7 @@ func (br *BinaryReader) ReadU24() uint32 {
 	b = append(make([]byte, 0, 4), b...)
 	b = append(b, 0)
 
-	return ble.Uint32(b)
+	return U24(ble.Uint32(b))
 }
 func (br *BinaryReader) ReadU32() uint32 {
 	if br.err != nil {
