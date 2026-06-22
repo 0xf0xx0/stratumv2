@@ -16,6 +16,7 @@ func (n *NoiseFrame) Encrypt() ([]byte, error) {
 
 // Decrypt decrypts the payload and stores it in [NoiseFrame.Frame]. It should be called after [NoiseFrame.DecryptHeader].
 func (n *NoiseFrame) Decrypt(b []byte) error {
+	// while rem >=65535, read, decrypt, append, then read any rem?
 	panic("UNIMPL")
 }
 
@@ -28,7 +29,7 @@ func (n *NoiseFrame) DecryptHeader(b []byte) error {
 func (n *NoiseFrame) DecryptFromReader(r io.Reader) error {
 	var err error
 
-	header := make([]byte, 6)
+	header := make([]byte, NoiseHeaderSize)
 	if _, err = r.Read(header); err != nil {
 		return err
 	}
@@ -44,6 +45,21 @@ func (n *NoiseFrame) DecryptFromReader(r io.Reader) error {
 		return err
 	}
 	return nil
+}
+
+// for [Codable]
+func (n *NoiseFrame) Encode() ([]byte, error) {
+	return n.Encrypt()
+}
+
+// for [Codable]
+func (n *NoiseFrame) Decode(b []byte) error {
+	return n.Decrypt(b)
+}
+
+// for [Codable]
+func (n *NoiseFrame) DecodeFromReader(r io.Reader) error {
+	return n.DecryptFromReader(r)
 }
 
 func plainTextLenToCipherTextLen(plainTextLen int) int {
