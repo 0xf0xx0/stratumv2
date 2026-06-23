@@ -63,7 +63,7 @@ func (f *Frame) Decode(b []byte) error {
 	messageType := r.ReadU8()
 	f.MessageType = Method(messageType)
 	f.MessageLength = r.ReadU24()
-	f.Payload = r.ReadBytes(int(f.MessageLength))
+	f.DecodePayload(b[FrameHeaderSize:])
 	return r.Error()
 }
 
@@ -76,10 +76,17 @@ func (f *Frame) DecodeHeader(b []byte) error {
 	f.MessageLength = r.ReadU24()
 	return r.Error()
 }
+
+// DecodePayload reads the payload from the given byte slice. It should be called after DecodeHeader.
+func (f *Frame) DecodePayload(b []byte) error {
+	r := NewBinaryReader(b)
+	f.Payload = r.ReadBytes(int(f.MessageLength))
+	return r.Error()
+}
 func (f *Frame) DecodeFromReader(r io.Reader) error {
 	var err error
 
-	header := make([]byte, 6)
+	header := make([]byte, FrameHeaderSize)
 	if _, err = r.Read(header); err != nil {
 		return err
 	}
@@ -87,6 +94,7 @@ func (f *Frame) DecodeFromReader(r io.Reader) error {
 	if err = f.DecodeHeader(header); err != nil {
 		return err
 	}
+
 	f.Payload = make([]byte, f.MessageLength)
 	if _, err = r.Read(f.Payload); err != nil {
 		return err

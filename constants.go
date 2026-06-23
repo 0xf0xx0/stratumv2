@@ -2,6 +2,8 @@ package stratumv2
 
 import (
 	"encoding/binary"
+
+	"github.com/flynn/noise"
 )
 
 var ble = binary.LittleEndian
@@ -9,13 +11,16 @@ var ble = binary.LittleEndian
 const (
 	// ProtocolVersion is the latest protocol version this package supports.
 	ProtocolVersion   = 2
-	MaxNoiseFrameSize = 2<<16 - 1
+	ProtocolName      = "Noise_NX_Secp256k1+EllSwift_ChaChaPoly_SHA256"
+	MaxNoiseFrameSize = noise.MaxMsgLen
 	// Serialized stratum-v2 body (payload) is split into 65519-byte chunks and encrypted to form 65535-bytes AEAD ciphertexts
 	ChunkSize         = 65519
 	MaxPlainFrameSize = MaxNoiseFrameSize - MacLen
-	NoiseHeaderSize   = 22
-	FrameHeaderSize   = 6
-	MacLen            = 16
+	// size of an encrypted header
+	NoiseHeaderSize = 22
+	// size of a plaintext header
+	FrameHeaderSize = 6
+	MacLen          = 16
 )
 
 const (

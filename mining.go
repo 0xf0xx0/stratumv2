@@ -576,7 +576,7 @@ type NewExtendedMiningJob struct {
 }
 
 func (m *NewExtendedMiningJob) Encode() ([]byte, error) {
-	out := NewBinaryBuilder().Grow(120)
+	out := NewBinaryBuilder().Grow(255)
 
 	out.AddU32(m.ChannelID).
 		AddU32(m.JobID).
@@ -769,7 +769,7 @@ type SetCustomMiningJobError struct {
 
 func (m *SetCustomMiningJobError) Encode() ([]byte, error) {
 	out := NewBinaryBuilder()
-	return out.Grow(16 + 255).AddU32(m.ChannelID).
+	return out.Grow(271).AddU32(m.ChannelID).
 		AddU32(m.RequestID).
 		AddStr255(string(m.ErrorCode)).Bytes()
 }
