@@ -22,7 +22,7 @@ type Frame struct {
 	// that originally defined the message structure.
 	ExtensionType Extension
 	// Unique identifier of this protocol message
-	MessageType Method
+	MessageType MessageType
 	// Length of the protocol message, not including this header
 	MessageLength U24
 	// Message-specific payload of length MessageLength.
@@ -50,7 +50,7 @@ func (f *Frame) Encode() ([]byte, error) {
 			}
 			out.AddBytes(enc)
 		}
-		f.MessageLength = U24(out.Len())
+		f.MessageLength += U24(out.Len())
 	}
 
 	return out.Bytes()
@@ -58,21 +58,41 @@ func (f *Frame) Encode() ([]byte, error) {
 
 // Decode decodes the full frame from the given byte slice.
 func (f *Frame) Decode(b []byte) error {
-	r := NewBinaryReader(b)
-	f.ExtensionType = r.ReadU16()
-	messageType := r.ReadU8()
-	f.MessageType = Method(messageType)
-	f.MessageLength = r.ReadU24()
-	f.DecodePayload(b[FrameHeaderSize:])
-	return r.Error()
+	err := f.DecodeHeader(b[:FrameHeaderSize])
+	if err != nil {
+		return err
+	}
+	n := FrameHeaderSize + int(f.MessageLength)
+	err = f.DecodePayload(b[FrameHeaderSize:n])
+	if err != nil {
+		return err
+	}
+	// U24+U16 = 5 bytes
+	// if remainder is less than this its just garbage
+	l := len(b)
+	if l > n+5 {
+		lastLen := 0
+		for {
+			if l-(n+lastLen) < 5 {
+				return nil
+			}
+			tlv := TLV{}
+			err := tlv.Decode(b[n+lastLen:])
+			if err != nil {
+				return err
+			}
+			f.TLVs = append(f.TLVs, tlv)
+			lastLen += int(tlv.Length) + 5
+		}
+	}
+	return err
 }
 
 // DecodeHeader decodes just the frame header from the given byte slice.
 func (f *Frame) DecodeHeader(b []byte) error {
 	r := NewBinaryReader(b)
 	f.ExtensionType = r.ReadU16()
-	messageType := r.ReadU8()
-	f.MessageType = Method(messageType)
+	f.MessageType = MessageType(r.ReadU8())
 	f.MessageLength = r.ReadU24()
 	return r.Error()
 }
@@ -104,22 +124,26 @@ func (f *Frame) DecodeFromReader(r io.Reader) error {
 
 type TLV struct {
 	// Identifies the TLV field.
-	// The first 2 bytes represent the extension_type, and the third byte represents the field_type within the extension context.
-	Type   U24
-	Length uint16 // Indicates the size (in bytes) of the Value field.
-	Value  []byte // The actual data of the extension field, of variable length.
+	// The first 2 bytes represent the extension_type,
+	ExtensionType uint16
+	// and the third byte represents the field_type within the extension context.
+	FieldType uint8
+	Length    uint16 // Indicates the size (in bytes) of the Value field.
+	Value     []byte // The actual data of the extension field, of variable length.
 }
 
 func (t *TLV) Encode() ([]byte, error) {
 	out := NewBinaryBuilder()
-	return out.Grow(len(t.Value) + 32).
-		AddU24(t.Type).
+	return out.Grow(len(t.Value) + 5).
+		AddU16(t.ExtensionType).
+		AddU8(t.FieldType).
 		AddU16(t.Length).
 		AddBin64K(t.Value).Bytes()
 }
 func (t *TLV) Decode(b []byte) error {
 	r := NewBinaryReader(b)
-	t.Type = r.ReadU24()
+	t.ExtensionType = r.ReadU16()
+	t.FieldType = r.ReadU8()
 	t.Length = r.ReadU16()
 	t.Value = r.ReadBytes(int(t.Length))
 	return r.Error()

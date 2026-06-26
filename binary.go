@@ -4,8 +4,6 @@ import (
 	"errors"
 	"io"
 	"math"
-
-	"github.com/btcsuite/btcd/chaincfg/chainhash"
 )
 
 const (
@@ -30,7 +28,7 @@ func (bb *BinaryBuilder) Grow(size int) *BinaryBuilder {
 	l := len(bb.data)
 	c := cap(bb.data)
 	if c-l < size {
-		newData := make([]byte, 0, size)
+		newData := make([]byte, l, c+size)
 		copy(newData, bb.data)
 		bb.data = newData
 	}
@@ -105,7 +103,7 @@ func (bb *BinaryBuilder) AddU64(u uint64) *BinaryBuilder {
 	bb.data = ble.AppendUint64(bb.data, u)
 	return bb
 }
-func (bb *BinaryBuilder) AddU256(u chainhash.Hash) *BinaryBuilder {
+func (bb *BinaryBuilder) AddU256(u U256) *BinaryBuilder {
 	if bb.err != nil {
 		return bb
 	}
@@ -387,8 +385,8 @@ func (br *BinaryReader) ReadU64() uint64 {
 	}
 	return ble.Uint64(b)
 }
-func (br *BinaryReader) ReadU256() chainhash.Hash {
-	h := chainhash.Hash{}
+func (br *BinaryReader) ReadU256() U256 {
+	h := U256{}
 	if br.err != nil {
 		return h
 	}

@@ -5,13 +5,11 @@ package stratumv2
 import (
 	"encoding/hex"
 	"errors"
-
-	"github.com/btcsuite/btcd/chaincfg/chainhash"
 )
 
 // helpers
 type Protocol uint8
-type Method uint8
+type MessageType uint8
 type Error string
 type Flag uint32 // MAYBE: add helpers for setting/clearing bits?
 // U24 is the set of all unsigned 24-bit integers.
@@ -164,7 +162,7 @@ func (a U64Sequence) Len() int {
 	return len(a)
 }
 
-type U256Sequence []chainhash.Hash
+type U256Sequence []U256
 
 func (a U256Sequence) Encode() ([]byte, error) {
 	out := NewBinaryBuilder()
@@ -185,7 +183,9 @@ func (a U256Sequence) Len() int {
 	return len(a)
 }
 
-// basically chainhash.Hash with a different set of funcs
+// basically chainhash.Hash with a slightly different set of funcs
+//
+// you likely want to use chainhash.Hash and cast to U256 when needed
 type U256 [32]byte
 
 func (u *U256) SetBytes(b []byte) error {
@@ -193,7 +193,7 @@ func (u *U256) SetBytes(b []byte) error {
 	if l > 32 {
 		return errors.New("SetBytes: len too long")
 	}
-	copy(u[:], b)
+	copy((*u)[:], b)
 	return nil
 }
 func (u *U256) SetString(s string) error {

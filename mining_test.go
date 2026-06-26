@@ -29,7 +29,7 @@ func TestExtendedJobEncode(t *testing.T) {
 		JobID:                 420,
 		MinTime:               []uint32{546576875},
 		Version:               1,
-		MerklePath:            []chainhash.Hash{chainhash.DoubleHashH([]byte("foobar"))},
+		MerklePath:            []stratumv2.U256{stratumv2.U256(chainhash.DoubleHashH([]byte("foobar")))},
 		VersionRollingAllowed: true,
 		CoinbasePrefix:        cp1,
 		CoinbaseSuffix:        cp2,
@@ -49,7 +49,7 @@ func TestExtendedSubmitDecode(t *testing.T) {
 		t.Logf("%+v", f)
 		t.Fatal(err.Error())
 	}
-	if f.MessageType != stratumv2.MethodSubmitSharesExtended {
+	if f.MessageType != stratumv2.MessageSubmitSharesExtended {
 		t.Fatal("not SubmitSharesExtended message")
 	}
 	if err := m.Decode(f.Payload); err != nil {

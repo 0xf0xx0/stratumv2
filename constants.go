@@ -24,49 +24,49 @@ const (
 )
 
 const (
-	MethodSetupConnection Method = iota
-	MethodSetupConnectionSuccess
-	MethodSetupConnectionError
-	MethodChannelEndpointChanged
-	MethodReconnect
+	MessageSetupConnection MessageType = iota
+	MessageSetupConnectionSuccess
+	MessageSetupConnectionError
+	MessageChannelEndpointChanged
+	MessageReconnect
 )
 
 // Mining Protocol
 const (
-	MethodOpenStandardMiningChannel Method = iota + 0x10
-	MethodOpenStandardMiningChannelSuccess
-	MethodOpenMiningChannelError
-	MethodOpenExtendedMiningChannel
-	MethodOpenExtendedMiningChannelSuccess
-	MethodNewMiningJob
-	MethodUpdateChannel
-	MethodUpdateChannelError
-	MethodCloseChannel
-	MethodSetExtranoncePrefix
-	MethodSubmitSharesStandard
-	MethodSubmitSharesExtended
-	MethodSubmitSharesSuccess
-	MethodSubmitSharesError
-	MethodReserved
-	MethodNewExtendedMiningJob
-	MethodSetNewPrevHash
-	MethodSetTarget
-	MethodSetCustomMiningJob
-	MethodSetCustomMiningJobSuccess
-	MethodSetCustomMiningJobError
-	MethodSetGroupChannel
+	MessageOpenStandardMiningChannel MessageType = iota + 0x10
+	MessageOpenStandardMiningChannelSuccess
+	MessageOpenMiningChannelError
+	MessageOpenExtendedMiningChannel
+	MessageOpenExtendedMiningChannelSuccess
+	MessageNewMiningJob
+	MessageUpdateChannel
+	MessageUpdateChannelError
+	MessageCloseChannel
+	MessageSetExtranoncePrefix
+	MessageSubmitSharesStandard
+	MessageSubmitSharesExtended
+	MessageSubmitSharesSuccess
+	MessageSubmitSharesError
+	MessageReserved
+	MessageNewExtendedMiningJob
+	MessageSetNewPrevHash
+	MessageSetTarget
+	MessageSetCustomMiningJob
+	MessageSetCustomMiningJobSuccess
+	MessageSetCustomMiningJobError
+	MessageSetGroupChannel
 )
 
 // Job Declaration Protocol
 const (
-	MethodAllocateMiningJobToken            Method = 0x50
-	MethodAllocateMiningJobTokenSuccess     Method = 0x51
-	MethodProvideMissingTransactions        Method = 0x55
-	MethodProvideMissingTransactionsSuccess Method = 0x56
-	MethodDeclareMiningJob                  Method = 0x57
-	MethodDeclareMiningJobSuccess           Method = 0x58
-	MethodDeclareMiningJobError             Method = 0x59
-	MethodPushSolution                      Method = 0x60
+	MessageAllocateMiningJobToken            MessageType = 0x50
+	MessageAllocateMiningJobTokenSuccess     MessageType = 0x51
+	MessageProvideMissingTransactions        MessageType = 0x55
+	MessageProvideMissingTransactionsSuccess MessageType = 0x56
+	MessageDeclareMiningJob                  MessageType = 0x57
+	MessageDeclareMiningJobSuccess           MessageType = 0x58
+	MessageDeclareMiningJobError             MessageType = 0x59
+	MessagePushSolution                      MessageType = 0x60
 )
 
 const (

@@ -3,7 +3,6 @@ package stratumv2
 import (
 	"bytes"
 
-	"github.com/btcsuite/btcd/chaincfg/chainhash"
 	"github.com/btcsuite/btcd/wire"
 )
 
@@ -67,7 +66,7 @@ type OpenStandardMiningChannel struct {
 	NominalHashRate float32
 	// Maximum target which can be accepted by the connected device or devices.
 	// Server MUST accept the target or respond by sending [OpenMiningChannelError] message.
-	MaxTarget chainhash.Hash
+	MaxTarget U256
 }
 
 func (m *OpenStandardMiningChannel) Encode() ([]byte, error) {
@@ -101,7 +100,7 @@ type OpenStandardMiningChannelSuccess struct {
 	// e.g. it is used for broadcasting new jobs by [NewExtendedMiningJob]
 	ChannelID uint32
 	// Initial target for the mining channel
-	Target chainhash.Hash
+	Target U256
 	// Bytes used as implicit first part of extranonce for the scenario when
 	// extended job is served by the upstream node for a set of standard channels
 	// that belong to the same group
@@ -229,7 +228,7 @@ type UpdateChannel struct {
 	// This field is understood as device's request.
 	// There can be some delay between UpdateChannel and corresponding SetTarget messages,
 	// based on new job readiness on the server.
-	MaxTarget chainhash.Hash
+	MaxTarget U256
 }
 
 func (m *UpdateChannel) Encode() ([]byte, error) {
@@ -481,7 +480,7 @@ type NewMiningJob struct {
 	// The general purpose bits (as specified in BIP320) can be freely manipulated by the downstream node.
 	// The downstream node MUST NOT rely on the upstream node to set the BIP320 bits to any particular value.
 	Version    uint32
-	MerkleRoot chainhash.Hash // Merkle root field as used in the bitcoin block header
+	MerkleRoot U256 // Merkle root field as used in the bitcoin block header
 }
 
 func (m *NewMiningJob) Encode() ([]byte, error) {
@@ -500,6 +499,7 @@ func (m *NewMiningJob) Decode(b []byte) error {
 
 	m.ChannelID = r.ReadU32()
 	m.JobID = r.ReadU32()
+	/// TODO: this decode is abysmal :\
 	m.MinTime = []uint32(r.ReadOptionT(make(U32Sequence, 0)).(U32Sequence))
 	m.Version = r.ReadU32()
 	m.MerkleRoot = r.ReadU256()
@@ -565,7 +565,7 @@ type NewExtendedMiningJob struct {
 	// The general purpose bits (as specified in BIP320) can be freely manipulated by the downstream node.
 	// The downstream node MUST NOT rely on the upstream node to set the BIP320 bits to any particular value.
 	Version    uint32
-	MerklePath []chainhash.Hash // Merkle path hashes ordered from deepest
+	MerklePath []U256 // Merkle path hashes ordered from deepest
 	// If set to True, the general purpose bits of version (as specified in BIP320) can be
 	// freely manipulated by the downstream node.
 	// The downstream node MUST NOT rely on the upstream node to set the BIP320 bits to any particular value.
@@ -597,7 +597,7 @@ func (m *NewExtendedMiningJob) Decode(b []byte) error {
 	m.MinTime = []uint32(r.ReadOptionT(U32Sequence{}).(U32Sequence))
 	m.Version = r.ReadU32()
 	m.VersionRollingAllowed = r.ReadBool()
-	m.MerklePath = []chainhash.Hash(r.ReadSeq255(U256Sequence{}).(U256Sequence))
+	m.MerklePath = []U256(r.ReadSeq255(U256Sequence{}).(U256Sequence))
 	m.CoinbasePrefix = r.ReadBin64K()
 	m.CoinbaseSuffix = r.ReadBin64K()
 
@@ -616,9 +616,9 @@ type SetNewPrevHash struct {
 	// (e.g. an empty block or a block with transactions that are complementary to
 	// the set of transactions present in the current block template).
 	JobID    uint32
-	PrevHash chainhash.Hash // Previous block’s hash, block header field
-	MinTime  uint32         // Smallest nTime value available for hashing
-	Bits     uint32         // Block header field
+	PrevHash U256   // Previous block’s hash, block header field
+	MinTime  uint32 // Smallest nTime value available for hashing
+	Bits     uint32 // Block header field
 }
 
 func (m *SetNewPrevHash) Encode() ([]byte, error) {
@@ -657,17 +657,17 @@ type SetCustomMiningJob struct {
 	// Valid version field that reflects the current network consensus.
 	// The general purpose bits (as specified in BIP320) can be freely manipulated by the downstream node.
 	Version          uint32
-	PrevHash         chainhash.Hash // Previous block’s hash, found in the block header field
-	MinTime          uint32         // Smallest nTime value available for hashing
-	Bits             uint32         // Block header field
-	CoinbaseVersion  uint32         // The coinbase transaction nVersion field
-	CoinbasePrefix   []byte         // Up to 8 bytes (not including the length byte) which are to be placed at the beginning of the coinbase field in the coinbase transaction.
-	CoinbaseSequence uint32         // The coinbase transaction input's nSequence field
+	PrevHash         U256   // Previous block’s hash, found in the block header field
+	MinTime          uint32 // Smallest nTime value available for hashing
+	Bits             uint32 // Block header field
+	CoinbaseVersion  uint32 // The coinbase transaction nVersion field
+	CoinbasePrefix   []byte // Up to 8 bytes (not including the length byte) which are to be placed at the beginning of the coinbase field in the coinbase transaction.
+	CoinbaseSequence uint32 // The coinbase transaction input's nSequence field
 	// Outputs of the coinbase transaction.
 	// CompactSize‑prefixed array of consensus‑serialized outputs.
 	CoinbaseOutputs  []wire.TxOut
-	CoinbaseLocktime uint32           // The locktime field in the coinbase transaction
-	MerklePath       []chainhash.Hash // Merkle path hashes ordered from deepest
+	CoinbaseLocktime uint32 // The locktime field in the coinbase transaction
+	MerklePath       []U256 // Merkle path hashes ordered from deepest
 }
 
 func (m *SetCustomMiningJob) Encode() ([]byte, error) {
@@ -799,7 +799,7 @@ type SetTarget struct {
 func (m *SetTarget) Encode() ([]byte, error) {
 	out := NewBinaryBuilder()
 	return out.Grow(36).AddU32(m.ChannelID).
-		AddU256(chainhash.Hash(m.MaxTarget)).Bytes()
+		AddU256(m.MaxTarget).Bytes()
 }
 func (m *SetTarget) Decode(b []byte) error {
 	r := NewBinaryReader(b)
