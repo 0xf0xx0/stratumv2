@@ -73,6 +73,16 @@ const (
 	UnsupportedFeatureFlagsError Error = "unsupported-feature-flags"
 	UnsupportedProtocolError     Error = "unsupported-protocol"
 	ProtocolVersionMismatchError Error = "protocol-version-mismatch"
+
+	// mining errors
+
+	UnknownUserError           Error = "unknown-user"
+	MaxTargetOutOfRangeError   Error = "max-target-out-of-range"
+	InvalidChannelIDError      Error = "invalid-channel-id"
+	StaleShareError            Error = "stale-share"
+	DifficultyTooLowError      Error = "difficulty-too-low"
+	InvalidJobIDError          Error = "invalid-job-id"
+	InvalidMiningJobTokenError Error = "invalid-mining-job-token"
 )
 
 const (

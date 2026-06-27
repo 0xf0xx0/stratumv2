@@ -10,7 +10,7 @@ import (
 // helpers
 type Protocol uint8
 type MessageType uint8
-type Error string
+type Error = string
 type Flag uint32 // MAYBE: add helpers for setting/clearing bits?
 // U24 is the set of all unsigned 24-bit integers.
 // Range: 0 through 16777215.

@@ -6,17 +6,6 @@ import (
 	"github.com/btcsuite/btcd/wire"
 )
 
-// errors
-const (
-	UnknownUserError           Error = "unknown-user"
-	MaxTargetOutOfRangeError   Error = "max-target-out-of-range"
-	InvalidChannelIDError      Error = "invalid-channel-id"
-	StaleShareError            Error = "stale-share"
-	DifficultyTooLowError      Error = "difficulty-too-low"
-	InvalidJobIDError          Error = "invalid-job-id"
-	InvalidMiningJobTokenError Error = "invalid-mining-job-token"
-)
-
 // flags
 const (
 	// The downstream node requires standard jobs, and is unable to process extended jobs.

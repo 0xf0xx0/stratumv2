@@ -1,13 +1,7 @@
 package stratumv2
 
 import (
-	"bytes"
-	"crypto/rand"
-	"crypto/sha256"
 	"io"
-
-	"github.com/btcsuite/btcd/btcec/v2/ellswift"
-	"github.com/flynn/noise"
 )
 
 type NoiseFrame struct {
@@ -112,55 +106,55 @@ func plainTextLenToCipherTextLen(plainTextLen int) int {
 
 // hi hello this is NOTHING BUT BULLSHIT
 // im figurin it out ;w; cwypto hawd
-func InitCipherState() {
-	/// 4.5.1
-	hash := sha256.New()
-	hash.Write([]byte(ProtocolName))
-	digest := hash.Sum(nil)
-	chainingKey := digest[:]
-	hash.Reset()
-	hash.Write(digest)
-	hashOutput := hash.Sum(nil)
+// func InitCipherState() {
+// 	/// 4.5.1
+// 	hash := sha256.New()
+// 	hash.Write([]byte(ProtocolName))
+// 	digest := hash.Sum(nil)
+// 	chainingKey := digest[:]
+// 	hash.Reset()
+// 	hash.Write(digest)
+// 	hashOutput := hash.Sum(nil)
 
-	var e, re noise.DHKey
-	var s, rs noise.DHKey
+// 	var e, re noise.DHKey
+// 	var s, rs noise.DHKey
 
-	var buf bytes.Buffer
-	buf.Grow(2048)
+// 	var buf bytes.Buffer
+// 	buf.Grow(2048)
 
-	pawshake, err := noise.NewHandshakeState(noise.Config{
-		/// FIXME:wrong dhfunc? make one from btcd funcs?
-		CipherSuite: noise.NewCipherSuite(noise.DH25519, noise.CipherChaChaPoly, noise.HashSHA256),
-		Pattern:     noise.HandshakeNX,
-		Initiator:   true,
-	})
-	if err != nil {
-		panic(err)
-	}
+// 	pawshake, err := noise.NewHandshakeState(noise.Config{
+// 		/// FIXME:wrong dhfunc? make one from btcd funcs?
+// 		CipherSuite: noise.NewCipherSuite(noise.DH25519, noise.CipherChaChaPoly, noise.HashSHA256),
+// 		Pattern:     noise.HandshakeNX,
+// 		Initiator:   true,
+// 	})
+// 	if err != nil {
+// 		panic(err)
+// 	}
 
-	// 4.5.1.1
-	e = pawshake.LocalEphemeral()
-	// TODO: get ellswift pubkey
+// 	// 4.5.1.1
+// 	e = pawshake.LocalEphemeral()
+// 	// TODO: get ellswift pubkey
 
-	cipherSuite := noise.NewCipherSuite(noise.DH25519, noise.CipherChaChaPoly, noise.HashSHA256)
+// 	cipherSuite := noise.NewCipherSuite(noise.DH25519, noise.CipherChaChaPoly, noise.HashSHA256)
 
-	_ = e
-	_ = cipherSuite
-	_ = pawshake
-	_ = buf
-	_ = hash
-	_ = hashOutput
-	_ = k
-	_ = chainingKey
-}
+// 	_ = e
+// 	_ = cipherSuite
+// 	_ = pawshake
+// 	_ = buf
+// 	_ = hash
+// 	_ = hashOutput
+// 	_ = k
+// 	_ = chainingKey
+// }
 
-func GenerateKeypair() {
-	b := make([]byte, 32)
-	rand.Read(b)
-	sk, pkb, _ := ellswift.EllswiftCreate()
-}
+// func GenerateKeypair() {
+// 	b := make([]byte, 32)
+// 	rand.Read(b)
+// 	sk, pkb, _ := ellswift.EllswiftCreate()
+// }
 
-func mixHash(a, b []byte) []byte {
-	hash := sha256.Sum256(append(a, b...))
-	return hash[:]
-}
+// func mixHash(a, b []byte) []byte {
+// 	hash := sha256.Sum256(append(a, b...))
+// 	return hash[:]
+// }
