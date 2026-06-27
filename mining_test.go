@@ -5,7 +5,7 @@ import (
 	"testing"
 
 	"git.0xf0xx0.eth.limo/0xf0xx0/stratumv2"
-	"github.com/btcsuite/btcd/chaincfg/chainhash"
+	"github.com/btcsuite/btcd/chainhash/v2"
 )
 
 func TestExtendedJobDecode(t *testing.T) {

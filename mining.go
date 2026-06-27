@@ -3,7 +3,7 @@ package stratumv2
 import (
 	"bytes"
 
-	"github.com/btcsuite/btcd/wire"
+	"github.com/btcsuite/btcd/wire/v2"
 )
 
 // flags
