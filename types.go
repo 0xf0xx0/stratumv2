@@ -166,7 +166,7 @@ type U256Sequence []U256
 
 func (a U256Sequence) Encode() ([]byte, error) {
 	out := NewBinaryBuilder()
-	out.Grow(len(a) * 256)
+	out.Grow(len(a) * 32)
 	for _, v := range a {
 		out.AddBytes(v[:])
 	}
