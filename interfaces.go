@@ -3,6 +3,7 @@ package stratumv2
 // MAYBE: merge into types.go
 
 // most structs implement this interface
+// TODO: io.reader interface
 type Codable interface {
 	Encode() ([]byte, error)
 	Decode([]byte) error
