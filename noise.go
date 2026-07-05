@@ -3,7 +3,7 @@ package stratumv2
 import (
 	"crypto/cipher"
 	"crypto/hmac"
-	"crypto/rand"
+	crand "crypto/rand"
 	"encoding/ascii85"
 	"errors"
 	"io"
@@ -51,7 +51,7 @@ type Keypair struct {
 
 func GenerateKeypair() (kp *Keypair, err error) {
 	b := make([]byte, 32)
-	rand.Read(b)
+	crand.Read(b)
 	secret_key, serialized_pubkey, err := ellswift.EllswiftCreate()
 	if err != nil {
 		return nil, err
