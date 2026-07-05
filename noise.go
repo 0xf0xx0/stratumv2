@@ -310,11 +310,11 @@ func (cs *CipherState) DecryptFrame(r io.Reader) (Frame, error) {
 /// util funcs
 
 func plainTextLenToCipherTextLen(plainTextLen int) int {
-	rem := plainTextLen % MaxPlainFrameSize
+	rem := plainTextLen % ChunkSize
 	if rem > 0 {
 		rem += MacLen
 	}
-	return plainTextLen/MaxPlainFrameSize*MaxNoiseFrameSize + rem
+	return plainTextLen/ChunkSize*MaxNoiseFrameSize + rem
 }
 
 // TODO: authority key struct?

@@ -8,18 +8,15 @@ var ble = binary.LittleEndian
 
 const (
 	// ProtocolVersion is the latest protocol version this package supports.
-	ProtocolVersion   = 2
-	ProtocolName      = "Noise_NX_Secp256k1+EllSwift_ChaChaPoly_SHA256"
-	MaxNoiseFrameSize = 65535
+	ProtocolVersion          = 2
+	CertificateFormatVersion = 0 // latest supported handshake certificate format version
+	ProtocolName             = "Noise_NX_Secp256k1+EllSwift_ChaChaPoly_SHA256"
 	// Serialized stratum-v2 body (payload) is split into 65519-byte chunks and encrypted to form 65535-bytes AEAD ciphertexts
 	ChunkSize         = 65519
-	MaxPlainFrameSize = MaxNoiseFrameSize - MacLen
-	// size of an encrypted header
-	NoiseHeaderSize = 22
-	// size of a plaintext header
-	FrameHeaderSize          = 6
-	MacLen                   = 16
-	CertificateFormatVersion = 0 // latest supported handshake certificate format version
+	MaxNoiseFrameSize = 65535
+	NoiseHeaderSize   = 22 // size of an encrypted header
+	FrameHeaderSize   = 6  // size of a plaintext header
+	MacLen            = 16
 )
 
 const (
