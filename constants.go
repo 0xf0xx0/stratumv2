@@ -17,8 +17,9 @@ const (
 	// size of an encrypted header
 	NoiseHeaderSize = 22
 	// size of a plaintext header
-	FrameHeaderSize = 6
-	MacLen          = 16
+	FrameHeaderSize          = 6
+	MacLen                   = 16
+	CertificateFormatVersion = 0 // latest supported handshake certificate format version
 )
 
 const (

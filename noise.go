@@ -1,7 +1,6 @@
 package stratumv2
 
 import (
-	"bufio"
 	"crypto/cipher"
 	"crypto/hmac"
 	"crypto/rand"
@@ -12,6 +11,7 @@ import (
 	"github.com/btcsuite/btcd/address/v2/base58"
 	"github.com/btcsuite/btcd/btcec/v2"
 	"github.com/btcsuite/btcd/btcec/v2/ellswift"
+	"github.com/btcsuite/btcd/btcec/v2/schnorr"
 	"github.com/minio/sha256-simd"
 	"golang.org/x/crypto/chacha20poly1305"
 )
@@ -56,30 +56,12 @@ type HandshakeState struct {
 	s, rs Keypair  // static keys. Static key and remote party's static key, respectively.
 }
 
-func (hs *HandshakeState) PerformHandshake(reader io.Reader, initiatior bool) (*CipherState, *CipherState, error) {
-	if initiatior {
-		return hs.performHandshakeInitiator(reader)
-	}
-	return hs.performHandshakeResponder(reader)
-}
-func (hs *HandshakeState) performHandshakeInitiator(r io.Reader) (*CipherState, *CipherState, error) {
-	c1 := &CipherState{}
-	c2 := &CipherState{}
-	panic("UNIMPL")
-
-	/// 4.5.1
-	initialChainingKey, hashOutput := handshakeInit()
-
-	return c1, c2, nil
-}
-func (hs *HandshakeState) performHandshakeResponder(r io.Reader) (*CipherState, *CipherState, error) {
+func (hs *HandshakeState) PerformHandshakeInitiator(r io.Reader, w io.Writer) (*CipherState, *CipherState, error) {
 	c1 := &CipherState{}
 	c2 := &CipherState{}
 
 	/// 4.5.1
 	initialChainingKey, hashOutput := handshakeInit()
-
-	/// 4.5.1.2
 	ephemeralKeys, err := GenerateKeypair()
 	if err != nil {
 		return nil, nil, err
@@ -90,6 +72,71 @@ func (hs *HandshakeState) performHandshakeResponder(r io.Reader) (*CipherState, 
 		cs: &CipherState{},
 		e:  *ephemeralKeys,
 	}
+
+	/// 4.5.1.1
+	buf := make([]byte, 0, 512)
+	buf = append(buf, handshake.e.pubkey[:]...)
+	handshake.MixHash(handshake.e.pubkey[:])
+	handshake.EncryptAndHash([]byte{})
+	w.Write(buf)
+
+	/// 4.5.2.2
+	buf = make([]byte, 170)
+	_, err = io.ReadFull(r, buf)
+	if err != nil {
+		return nil, nil, err
+	}
+	bufidx := 64
+	handshake.re.pubkey = [64]byte(buf[:bufidx])
+	handshake.MixHash(handshake.re.pubkey[:])
+	handshake.MixKey(handshake.ECDH(handshake.e, handshake.re.pubkey, true))
+
+	serverStaticPub, err := handshake.DecryptAndHash(buf[bufidx : bufidx+80])
+	bufidx += 80
+	if err != nil {
+		return nil, nil, err
+	}
+	handshake.rs.pubkey = [64]byte(serverStaticPub)
+	handshake.MixKey(handshake.ECDH(handshake.e, handshake.rs.pubkey, true))
+
+	sigbytes, err := handshake.DecryptAndHash(buf[bufidx : bufidx+90])
+	bufidx += 90
+	if err != nil {
+		return nil, nil, err
+	}
+	m := &SIGNATURE_NOISE_MESSAGE{}
+	err = m.Decode(sigbytes)
+	if err != nil {
+		return nil, nil, err
+	}
+
+	tempk1, tempk2 := HKDF(handshake.ck[:], []byte{})
+
+	c1.InitializeKey(tempk1)
+	c2.InitializeKey(tempk2)
+
+	return c1, c2, nil
+}
+func (hs *HandshakeState) PerformHandshakeResponder(r io.Reader, cert *SIGNATURE_NOISE_MESSAGE, staticKeys *Keypair) (*CipherState, *CipherState, error) {
+	c2s := &CipherState{}
+	s2c := &CipherState{}
+
+	/// 4.5.1
+	initialChainingKey, hashOutput := handshakeInit()
+
+	ephemeralKeys, err := GenerateKeypair()
+	if err != nil {
+		return nil, nil, err
+	}
+	handshake := &HandshakeState{
+		ck: [32]byte(initialChainingKey),
+		h:  [32]byte(hashOutput),
+		cs: &CipherState{},
+		e:  *ephemeralKeys,
+		s:  *staticKeys,
+	}
+
+	/// 4.5.1.2
 	remoteEPubkey := make([]byte, 64)
 	_, err = io.ReadFull(r, remoteEPubkey)
 	if err != nil {
@@ -108,29 +155,23 @@ func (hs *HandshakeState) performHandshakeResponder(r io.Reader) (*CipherState, 
 	handshake.MixHash(handshake.e.pubkey[:])
 	handshake.MixKey(handshake.ECDH(handshake.e, handshake.re.pubkey, false))
 
-	/// TODO: where do static keys come from?
-	staticKeys, err := GenerateKeypair()
+	/// static keys come from user
+	buf = append(buf, handshake.EncryptAndHash(handshake.s.pubkey[:])...)
+	handshake.MixKey(handshake.ECDH(handshake.s, handshake.re.pubkey, false))
+	certBytes, err := cert.Encode()
 	if err != nil {
 		return nil, nil, err
 	}
-	handshake.s = *staticKeys
 
-	buf = append(buf, handshake.EncryptAndHash(handshake.s.pubkey[:])...)
-	handshake.MixKey(handshake.ECDH(handshake.s, handshake.re.pubkey, false))
-	msg := SIGNATURE_NOISE_MESSAGE{
-		Version:       42069,
-		ValidFrom:     0,
-		NotValidAfter: 2<<16 - 1,
-		Signature:     nil,
-	}
-	enc, _ := msg.Encode()
-	buf = append(buf, handshake.EncryptAndHash(enc)...)
+	buf = append(buf, handshake.EncryptAndHash(certBytes)...)
 	tempk1, tempk2 := HKDF(handshake.ck[:], []byte{})
 
-	c1.InitializeKey([32]byte(tempk1))
-	c2.InitializeKey([32]byte(tempk2))
+	c2s.InitializeKey(tempk1)
+	s2c.InitializeKey(tempk2)
 
-	return c1, c2, nil
+	// initiator->responder, responder->initiator
+	// (c2s, s2c)
+	return c2s, s2c, nil
 }
 
 func (hs *HandshakeState) EncryptAndHash(plaintext []byte) []byte {
@@ -163,7 +204,7 @@ func (hs *HandshakeState) MixHash(data []byte) {
 func (hs *HandshakeState) MixKey(inputKeyMaterial []byte) {
 	ck, temp := HKDF(hs.ck[:], inputKeyMaterial)
 	hs.ck = [32]byte(ck)
-	hs.cs.InitializeKey([32]byte(temp))
+	hs.cs.InitializeKey(temp)
 }
 func (hs *HandshakeState) ECDH(k Keypair, rk [64]byte, initiator bool) []byte {
 	hash, err := ellswift.V2Ecdh(k.privkey, rk, k.pubkey, initiator)
@@ -176,16 +217,16 @@ func (hs *HandshakeState) ECDH(k Keypair, rk [64]byte, initiator bool) []byte {
 // Object that encapsulates encryption and decryption operations with underlying AEAD mode
 // cipher functions using 32-byte encryption key `k` and 8-byte nonce `n`.
 type CipherState struct {
-	k   [32]byte
+	k   []byte // encryption key
 	n   uint64
 	gcm cipher.AEAD
 }
 
-func (cs *CipherState) InitializeKey(k [32]byte) {
-	cs.k = k
+func (cs *CipherState) InitializeKey(k []byte) {
+	cs.k = k[:]
 	cs.n = 0
 	var err error
-	cs.gcm, err = chacha20poly1305.New(cs.k[:])
+	cs.gcm, err = chacha20poly1305.New(cs.k)
 	if err != nil {
 		panic(err)
 	}
@@ -204,6 +245,7 @@ func (cs *CipherState) EncryptWithAd(ad, plaintext []byte) []byte {
 func (cs *CipherState) DecryptWithAd(ad, ciphertext []byte) ([]byte, error) {
 	out, err := cs.gcm.Open(ciphertext[:0], cs.getNonce(), ciphertext, ad)
 	if err != nil {
+		cs.n--
 		return nil, err
 	}
 	return out, nil
@@ -283,6 +325,28 @@ func DeserializeAuthorityKey(pubkey string) ([]byte, error) {
 	return decoded[1:], nil
 }
 
+// idk where this is in the docs
+// copied from public-pool
+func NewAuthoritySignature(authorityPrivkey *btcec.PrivateKey, staticPubkey []byte, validFrom, notValidAfter uint32) (*SIGNATURE_NOISE_MESSAGE, error) {
+	m := &SIGNATURE_NOISE_MESSAGE{
+		Version:       CertificateFormatVersion,
+		ValidFrom:     validFrom,
+		NotValidAfter: notValidAfter,
+	}
+	buf, err := m.Encode()
+	if err != nil {
+		return nil, err
+	}
+	buf = append(buf, staticPubkey...)
+	hash := sha256.Sum256(buf)
+	sig, err := schnorr.Sign(authorityPrivkey, hash[:])
+	if err != nil {
+		return nil, err
+	}
+	m.Signature = sig.Serialize()
+	return m, nil
+}
+
 func hmacHash(key, data []byte) []byte {
 	hash := hmac.New(sha256.New, key)
 	hash.Write(data)
@@ -293,53 +357,6 @@ func HKDF(chainingKey, inputKeyMaterial []byte) ([]byte, []byte) {
 	out1 := hmacHash(temp, []byte{0x01})
 	out2 := hmacHash(temp, append(out1, 0x02))
 	return out1, out2
-}
-
-// hi hello this is NOTHING BUT BULLSHIT
-// im figurin it out ;w; cwypto hawd
-func InitCipherState(r *bufio.Reader) {
-	/// 4.5.1
-	initialChainingKey, hashOutput := handshakeInit()
-
-	/// 4.5.1.2
-	ephemeralKeys, _ := GenerateKeypair()
-	handshake := &HandshakeState{
-		ck: [32]byte(initialChainingKey),
-		h:  [32]byte(hashOutput),
-		cs: &CipherState{},
-		e:  *ephemeralKeys,
-	}
-	remoteEPubkey := make([]byte, 64)
-	io.ReadFull(r, remoteEPubkey)
-	handshake.re.pubkey = [64]byte(remoteEPubkey)
-	handshake.MixHash(remoteEPubkey)
-	handshake.DecryptAndHash([]byte{})
-
-	/// 4.5.2.1
-	buf := make([]byte, 0, 512)
-	buf = append(buf, handshake.e.pubkey[:]...)
-	handshake.MixHash(handshake.e.pubkey[:])
-	handshake.MixKey(handshake.ECDH(handshake.e, handshake.re.pubkey, false))
-
-	/// TODO: where do static keys come from?
-	staticKeys, _ := GenerateKeypair()
-	handshake.s = *staticKeys
-
-	buf = append(buf, handshake.EncryptAndHash(handshake.s.pubkey[:])...)
-	handshake.MixKey(handshake.ECDH(handshake.s, handshake.re.pubkey, false))
-	msg := SIGNATURE_NOISE_MESSAGE{
-		Version:       42069,
-		ValidFrom:     0,
-		NotValidAfter: 2<<16 - 1,
-		Signature:     nil,
-	}
-	enc, _ := msg.Encode()
-	buf = append(buf, handshake.EncryptAndHash(enc)...)
-	tempk1, tempk2 := HKDF(handshake.ck[:], []byte{})
-	c1 := &CipherState{}
-	c2 := &CipherState{}
-	c1.InitializeKey([32]byte(tempk1))
-	c2.InitializeKey([32]byte(tempk2))
 }
 
 func handshakeInit() ([]byte, []byte) {
