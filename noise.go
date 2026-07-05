@@ -130,7 +130,7 @@ func (hs *HandshakeState) PerformHandshakeInitiator(r io.ReadWriter, authorityPu
 	}
 
 	/// 4.5.1.1
-	buf := make([]byte, 0, 512)
+	buf := make([]byte, 0, 64)
 	buf = append(buf, handshake.e.Public[:]...)
 	handshake.MixHash(handshake.e.Public[:])
 	handshake.EncryptAndHash([]byte{})

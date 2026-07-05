@@ -276,6 +276,12 @@ func (bb *BinaryBuilder) AddSeq64K(things Sequence) *BinaryBuilder {
 }
 
 func (bb *BinaryBuilder) AddBytes(bin []byte) *BinaryBuilder {
+	if bb.err != nil {
+		return bb
+	}
+	if len(bin) == 0 {
+		return bb
+	}
 	bb.data = append(bb.data, bin...)
 	return bb
 }
