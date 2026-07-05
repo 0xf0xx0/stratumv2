@@ -23,6 +23,17 @@ type SIGNATURE_NOISE_MESSAGE struct {
 	Signature     []byte // Certificate signature
 }
 
+func (m *SIGNATURE_NOISE_MESSAGE) Decode(data []byte) error {
+	if len(data) != 74 {
+		return errors.New("invalid signature noise message length")
+	}
+	r := NewBinaryReader(data)
+	m.Version = r.ReadU16()
+	m.ValidFrom = r.ReadU32()
+	m.NotValidAfter = r.ReadU32()
+	m.Signature = r.ReadBytes(64)
+	return nil
+}
 func (m *SIGNATURE_NOISE_MESSAGE) Encode() ([]byte, error) {
 	return NewBinaryBuilder().
 		Grow(74).
