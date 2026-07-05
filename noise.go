@@ -7,6 +7,7 @@ import (
 	"encoding/ascii85"
 	"errors"
 	"io"
+	"time"
 
 	"github.com/btcsuite/btcd/address/v2/base58"
 	"github.com/btcsuite/btcd/btcec/v2"
@@ -67,7 +68,40 @@ type HandshakeState struct {
 	s, rs Keypair  // static keys. Static key and remote party's static key, respectively.
 }
 
-func (hs *HandshakeState) PerformHandshakeInitiator(r io.Reader, w io.Writer) (*CipherState, *CipherState, error) {
+func (hs *HandshakeState) AuthServerCertificate(cert *SIGNATURE_NOISE_MESSAGE, staticPubkey []byte, authorityPubkey []byte) (bool, error) {
+	now := time.Now()
+	if cert.Version != CertificateFormatVersion {
+		return false, errors.New("unsupported certificate format version")
+	}
+	if cert.ValidFrom > uint32(now.Unix()) {
+		return false, errors.New("certificate is not yet valid")
+	}
+	if cert.NotValidAfter < uint32(now.Unix()) {
+		return false, errors.New("certificate has expired")
+	}
+
+	sigBytes := cert.Signature[:]
+	cert.Signature = nil
+
+	buf, err := cert.Encode()
+	if err != nil {
+		return false, err
+	}
+	sig, err := schnorr.ParseSignature(sigBytes)
+	if err != nil {
+		return false, err
+	}
+	pub, err := schnorr.ParsePubKey(authorityPubkey)
+	if err != nil {
+		return false, err
+	}
+
+	buf = append(buf, staticPubkey...)
+	hash := sha256.Sum256(buf)
+	return sig.Verify(hash[:], pub), nil
+}
+
+func (hs *HandshakeState) PerformHandshakeInitiator(r io.Reader, w io.Writer, authorityPubkey []byte) (*CipherState, *CipherState, error) {
 	c1 := &CipherState{}
 	c2 := &CipherState{}
 
@@ -119,6 +153,16 @@ func (hs *HandshakeState) PerformHandshakeInitiator(r io.Reader, w io.Writer) (*
 	err = m.Decode(sigbytes)
 	if err != nil {
 		return nil, nil, err
+	}
+
+	if authorityPubkey != nil {
+		ok, err := handshake.AuthServerCertificate(m, serverStaticPub, authorityPubkey)
+		if err != nil {
+			return nil, nil, err
+		}
+		if !ok {
+			return nil, nil, errors.New("invalid server certificate")
+		}
 	}
 
 	tempk1, tempk2 := HKDF(handshake.ck[:], []byte{})
