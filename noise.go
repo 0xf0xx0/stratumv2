@@ -3,7 +3,6 @@ package stratumv2
 import (
 	"crypto/cipher"
 	"crypto/hmac"
-	crand "crypto/rand"
 	"encoding/ascii85"
 	"errors"
 	"io"
@@ -46,18 +45,25 @@ func (m *SIGNATURE_NOISE_MESSAGE) Encode() ([]byte, error) {
 }
 
 type Keypair struct {
-	privkey *btcec.PrivateKey
-	pubkey  [64]byte // EllSwift encoded serialization of the X-coordinate of EC point
+	Private *btcec.PrivateKey
+	PublicX [32]byte // X-coordinate of the public key
+	Public  [64]byte // EllSwift encoded serialization of the X-coordinate of EC point
 }
 
 func GenerateKeypair() (kp *Keypair, err error) {
-	b := make([]byte, 32)
-	crand.Read(b)
 	secret_key, serialized_pubkey, err := ellswift.EllswiftCreate()
 	if err != nil {
 		return nil, err
 	}
-	return &Keypair{privkey: secret_key, pubkey: serialized_pubkey}, nil
+
+	publicX := [32]byte{}
+	b := secret_key.PubKey().X().FillBytes(publicX[:])
+	publicX = [32]byte(b)
+	return &Keypair{Private: secret_key, Public: serialized_pubkey, PublicX: publicX}, nil
+}
+
+func StartHandshake(initiator bool) *HandshakeState {
+	return &HandshakeState{}
 }
 
 type HandshakeState struct {
@@ -68,7 +74,11 @@ type HandshakeState struct {
 	s, rs Keypair  // static keys. Static key and remote party's static key, respectively.
 }
 
-func (hs *HandshakeState) AuthServerCertificate(cert *SIGNATURE_NOISE_MESSAGE, staticPubkey []byte, authorityPubkey []byte) (bool, error) {
+func (hs *HandshakeState) AuthServerCertificate(cert *SIGNATURE_NOISE_MESSAGE, staticPubkey []byte, authorityPubkey [32]byte) (bool, error) {
+	return VerifyServerCertificate(cert, authorityPubkey, staticPubkey)
+}
+
+func VerifyServerCertificate(cert *SIGNATURE_NOISE_MESSAGE, authorityPubkey [32]byte, staticPubkey []byte) (bool, error) {
 	now := time.Now()
 	if cert.Version != CertificateFormatVersion {
 		return false, errors.New("unsupported certificate format version")
@@ -87,11 +97,12 @@ func (hs *HandshakeState) AuthServerCertificate(cert *SIGNATURE_NOISE_MESSAGE, s
 	if err != nil {
 		return false, err
 	}
+	cert.Signature = sigBytes
 	sig, err := schnorr.ParseSignature(sigBytes)
 	if err != nil {
 		return false, err
 	}
-	pub, err := schnorr.ParsePubKey(authorityPubkey)
+	pub, err := schnorr.ParsePubKey(authorityPubkey[:])
 	if err != nil {
 		return false, err
 	}
@@ -101,7 +112,7 @@ func (hs *HandshakeState) AuthServerCertificate(cert *SIGNATURE_NOISE_MESSAGE, s
 	return sig.Verify(hash[:], pub), nil
 }
 
-func (hs *HandshakeState) PerformHandshakeInitiator(r io.Reader, w io.Writer, authorityPubkey []byte) (*CipherState, *CipherState, error) {
+func (hs *HandshakeState) PerformHandshakeInitiator(r io.ReadWriter, authorityPubkey [32]byte) (*CipherState, *CipherState, error) {
 	c1 := &CipherState{}
 	c2 := &CipherState{}
 
@@ -120,49 +131,50 @@ func (hs *HandshakeState) PerformHandshakeInitiator(r io.Reader, w io.Writer, au
 
 	/// 4.5.1.1
 	buf := make([]byte, 0, 512)
-	buf = append(buf, handshake.e.pubkey[:]...)
-	handshake.MixHash(handshake.e.pubkey[:])
+	buf = append(buf, handshake.e.Public[:]...)
+	handshake.MixHash(handshake.e.Public[:])
 	handshake.EncryptAndHash([]byte{})
-	w.Write(buf)
+	r.Write(buf)
 
 	/// 4.5.2.2
-	buf = make([]byte, 170)
+	/// FIXME: spec claims this is 170 bytes, but we actually read 234?
+	buf = make([]byte, 234)
 	_, err = io.ReadFull(r, buf)
 	if err != nil {
 		return nil, nil, err
 	}
-	bufidx := 64
-	handshake.re.pubkey = [64]byte(buf[:bufidx])
-	handshake.MixHash(handshake.re.pubkey[:])
-	handshake.MixKey(handshake.ECDH(handshake.e, handshake.re.pubkey, true))
+	handshake.re.Public = [64]byte(buf[:64])
+	staticEnc := buf[64:144]
+	certEnc := buf[144:234]
+	handshake.MixHash(handshake.re.Public[:])
+	handshake.MixKey(handshake.ECDH(handshake.e, handshake.re.Public, true))
 
-	serverStaticPub, err := handshake.DecryptAndHash(buf[bufidx : bufidx+80])
-	bufidx += 80
+	serverStaticPub, err := handshake.DecryptAndHash(staticEnc)
 	if err != nil {
 		return nil, nil, err
 	}
-	handshake.rs.pubkey = [64]byte(serverStaticPub)
-	handshake.MixKey(handshake.ECDH(handshake.e, handshake.rs.pubkey, true))
+	handshake.rs.Public = [64]byte(serverStaticPub)
+	handshake.MixKey(handshake.ECDH(handshake.e, handshake.rs.Public, true))
 
-	sigbytes, err := handshake.DecryptAndHash(buf[bufidx : bufidx+90])
-	bufidx += 90
+	/// FIXME: errors
+	sigbytes, err := handshake.DecryptAndHash(certEnc)
+	println("weh")
 	if err != nil {
 		return nil, nil, err
 	}
+	println("wehhh")
 	m := &SIGNATURE_NOISE_MESSAGE{}
 	err = m.Decode(sigbytes)
 	if err != nil {
 		return nil, nil, err
 	}
 
-	if authorityPubkey != nil {
-		ok, err := handshake.AuthServerCertificate(m, serverStaticPub, authorityPubkey)
-		if err != nil {
-			return nil, nil, err
-		}
-		if !ok {
-			return nil, nil, errors.New("invalid server certificate")
-		}
+	ok, err := handshake.AuthServerCertificate(m, serverStaticPub, authorityPubkey)
+	if err != nil {
+		return nil, nil, err
+	}
+	if !ok {
+		return nil, nil, errors.New("invalid server certificate")
 	}
 
 	tempk1, tempk2 := HKDF(handshake.ck[:], []byte{})
@@ -172,7 +184,7 @@ func (hs *HandshakeState) PerformHandshakeInitiator(r io.Reader, w io.Writer, au
 
 	return c1, c2, nil
 }
-func (hs *HandshakeState) PerformHandshakeResponder(r io.Reader, cert *SIGNATURE_NOISE_MESSAGE, staticKeys *Keypair) (*CipherState, *CipherState, error) {
+func (hs *HandshakeState) PerformHandshakeResponder(r io.ReadWriter, cert *SIGNATURE_NOISE_MESSAGE, staticKeys *Keypair) (*CipherState, *CipherState, error) {
 	c2s := &CipherState{}
 	s2c := &CipherState{}
 
@@ -197,7 +209,7 @@ func (hs *HandshakeState) PerformHandshakeResponder(r io.Reader, cert *SIGNATURE
 	if err != nil {
 		return nil, nil, err
 	}
-	handshake.re.pubkey = [64]byte(remoteEPubkey)
+	handshake.re.Public = [64]byte(remoteEPubkey)
 	handshake.MixHash(remoteEPubkey)
 	_, err = handshake.DecryptAndHash([]byte{})
 	if err != nil {
@@ -205,20 +217,21 @@ func (hs *HandshakeState) PerformHandshakeResponder(r io.Reader, cert *SIGNATURE
 	}
 
 	/// 4.5.2.1
-	buf := make([]byte, 0, 512)
-	buf = append(buf, handshake.e.pubkey[:]...)
-	handshake.MixHash(handshake.e.pubkey[:])
-	handshake.MixKey(handshake.ECDH(handshake.e, handshake.re.pubkey, false))
+	buf := make([]byte, 0, 234)
+	buf = append(buf, handshake.e.Public[:]...)
+	handshake.MixHash(handshake.e.Public[:])
+	handshake.MixKey(handshake.ECDH(handshake.e, handshake.re.Public, false))
 
 	/// static keys come from user
-	buf = append(buf, handshake.EncryptAndHash(handshake.s.pubkey[:])...)
-	handshake.MixKey(handshake.ECDH(handshake.s, handshake.re.pubkey, false))
+	buf = append(buf, handshake.EncryptAndHash(handshake.s.Public[:])...)
+	handshake.MixKey(handshake.ECDH(handshake.s, handshake.re.Public, false))
 	certBytes, err := cert.Encode()
 	if err != nil {
 		return nil, nil, err
 	}
 
 	buf = append(buf, handshake.EncryptAndHash(certBytes)...)
+	r.Write(buf)
 	tempk1, tempk2 := HKDF(handshake.ck[:], []byte{})
 
 	c2s.InitializeKey(tempk1)
@@ -262,7 +275,7 @@ func (hs *HandshakeState) MixKey(inputKeyMaterial []byte) {
 	hs.cs.InitializeKey(temp)
 }
 func (hs *HandshakeState) ECDH(k Keypair, rk [64]byte, initiator bool) []byte {
-	hash, err := ellswift.V2Ecdh(k.privkey, rk, k.pubkey, initiator)
+	hash, err := ellswift.V2Ecdh(k.Private, rk, k.Public, initiator)
 	if err != nil {
 		panic(err)
 	}
@@ -334,7 +347,7 @@ func (cs *CipherState) DecryptFrame(r io.Reader) (Frame, error) {
 	frame.DecodeHeader(decrypted)
 
 	/// now decrypt payload
-	payloadLen := plainTextLenToCipherTextLen(int(frame.MessageLength))
+	payloadLen := PlainTextLenToCipherTextLen(int(frame.MessageLength))
 	payload := make([]byte, payloadLen)
 	read, err = r.Read(payload)
 	if err != nil {
@@ -353,7 +366,7 @@ func (cs *CipherState) DecryptFrame(r io.Reader) (Frame, error) {
 
 /// util funcs
 
-func plainTextLenToCipherTextLen(plainTextLen int) int {
+func PlainTextLenToCipherTextLen(plainTextLen int) int {
 	rem := plainTextLen % ChunkSize
 	if rem > 0 {
 		rem += MacLen
@@ -416,7 +429,9 @@ func HKDF(chainingKey, inputKeyMaterial []byte) ([]byte, []byte) {
 
 func handshakeInit() ([]byte, []byte) {
 	hash := sha256.New()
-	dst := make([]byte, len(ProtocolName))
+	dst := make([]byte, ascii85.MaxEncodedLen(len(ProtocolName)))
+	println(len(dst))
+
 	ascii85.Encode(dst, []byte(ProtocolName))
 	hash.Write(dst)
 	digest := hash.Sum(nil)
