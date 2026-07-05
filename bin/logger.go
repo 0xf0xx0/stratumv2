@@ -16,8 +16,8 @@ import (
 )
 
 var (
-	poolhost = "[::1]"
-	poolport = 5661
+	poolhost = "38.51.144.232" /// public-pool.io
+	poolport = 23331
 	reqid    = uint32(0)
 	addr     = func() *address.AddressTaproot {
 		b, _ := hex.DecodeString("8033d13ee81500afe03a9f48ed142b15724816dd9247c9cf55ae447a5b867449")
@@ -29,6 +29,7 @@ var (
 		s.SetString("00000000FFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFF")
 		return s
 	}()
+	authkey = "9c4zpyJ2ndm4e8sP2uNc1VNCGxYjqaxWS6wUCjk8zFj6njFquH6"
 )
 
 func main() {
@@ -64,10 +65,6 @@ func main() {
 		MessageLength: stratumv2.U24(len(setupPayload)),
 		Payload:       setupPayload,
 	}
-	setupBytes, err := setupFrame.Encode()
-	if err != nil {
-		panic(err)
-	}
 	openchanPayload, err := openchanmsg.Encode()
 	if err != nil {
 		panic(err)
@@ -77,7 +74,9 @@ func main() {
 		MessageLength: stratumv2.U24(len(openchanPayload)),
 		Payload:       openchanPayload,
 	}
-	openchanBytes, err := openchanFrame.Encode()
+
+	cliPaw := &stratumv2.HandshakeState{}
+	authorityPubkey, err := stratumv2.DeserializeAuthorityKey(authkey)
 	if err != nil {
 		panic(err)
 	}
@@ -86,10 +85,15 @@ func main() {
 	if err != nil {
 		panic(err)
 	}
+
+	c2s, s2c, err := cliPaw.PerformHandshakeInitiator(conn, [32]byte(authorityPubkey))
+	if err != nil {
+		panic(err)
+	}
+
 	go func() {
 		for {
-			frame := stratumv2.Frame{}
-			err := frame.DecodeFromReader(conn)
+			frame, err := s2c.DecryptFrame(conn)
 			if err != nil {
 				panic(err)
 			}
@@ -98,10 +102,20 @@ func main() {
 		}
 	}()
 
+	setupBytes, err := c2s.EncryptFrame(setupFrame)
+	if err != nil {
+		panic(err)
+	}
 	fmt.Printf("TX: %x\n", setupBytes)
 	conn.Write(setupBytes)
+
+	openchanBytes, err := c2s.EncryptFrame(openchanFrame)
+	if err != nil {
+		panic(err)
+	}
 	fmt.Printf("TX: %x\n", openchanBytes)
 	conn.Write(openchanBytes)
+
 	<-sigs
 	conn.Close()
 }

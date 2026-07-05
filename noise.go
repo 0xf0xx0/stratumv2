@@ -230,7 +230,10 @@ func (hs *HandshakeState) PerformHandshakeResponder(r io.ReadWriter, cert *SIGNA
 		return nil, nil, err
 	}
 
+	println(len(buf))
 	buf = append(buf, handshake.EncryptAndHash(certBytes)...)
+	println(len(buf))
+
 	r.Write(buf)
 	tempk1, tempk2 := HKDF(handshake.ck[:], []byte{})
 
@@ -430,7 +433,6 @@ func HKDF(chainingKey, inputKeyMaterial []byte) ([]byte, []byte) {
 func handshakeInit() ([]byte, []byte) {
 	hash := sha256.New()
 	dst := make([]byte, ascii85.MaxEncodedLen(len(ProtocolName)))
-	println(len(dst))
 
 	ascii85.Encode(dst, []byte(ProtocolName))
 	hash.Write(dst)
