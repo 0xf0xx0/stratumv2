@@ -2,6 +2,7 @@ package stratumv2_test
 
 import (
 	"crypto/rand"
+	"encoding/hex"
 	"net"
 	"sync"
 	"testing"
@@ -63,6 +64,16 @@ func TestCerts(t *testing.T) {
 	}
 	if ok {
 		t.Errorf("cert verified when it should have failed")
+	}
+}
+
+func TestHMAC(t *testing.T) {
+	key, _ := hex.DecodeString("0b0b0b0b0b0b0b0b0b0b0b0b0b0b0b0b0b0b0b0b")
+	data := []byte("Hi There")
+	expected := "b0344c61d8db38535ca8afceaf0bf12b881dc200c9833da726e9376c2e32cff7"
+	out := hex.EncodeToString(stratumv2.HmacHash(key, data))
+	if out != expected {
+		t.Errorf("expected %s, got %s", expected, out)
 	}
 }
 

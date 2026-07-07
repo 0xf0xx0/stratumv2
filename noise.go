@@ -5,6 +5,7 @@ import (
 	"crypto/hmac"
 	"encoding/ascii85"
 	"errors"
+	"fmt"
 	"io"
 	"time"
 
@@ -60,10 +61,6 @@ func GenerateKeypair() (kp *Keypair, err error) {
 	b := secret_key.PubKey().X().FillBytes(publicX[:])
 	publicX = [32]byte(b)
 	return &Keypair{Private: secret_key, Public: serialized_pubkey, PublicX: publicX}, nil
-}
-
-func StartHandshake(initiator bool) *HandshakeState {
-	return &HandshakeState{}
 }
 
 type HandshakeState struct {
@@ -129,11 +126,13 @@ func (hs *HandshakeState) PerformHandshakeInitiator(r io.ReadWriter, authorityPu
 		e:  *ephemeralKeys,
 	}
 
+	fmt.Printf("4.5.1.1: ephemeral pub (ell): %x\n\tX: %x\n", ephemeralKeys.Public, ephemeralKeys.PublicX)
+
 	/// 4.5.1.1
 	buf := make([]byte, 0, 64)
 	buf = append(buf, handshake.e.Public[:]...)
 	handshake.MixHash(handshake.e.Public[:])
-	handshake.EncryptAndHash([]byte{})
+	buf = append(buf, handshake.EncryptAndHash([]byte{})...)
 	r.Write(buf)
 
 	/// 4.5.2.2
@@ -146,9 +145,13 @@ func (hs *HandshakeState) PerformHandshakeInitiator(r io.ReadWriter, authorityPu
 	handshake.re.Public = [64]byte(buf[:64])
 	staticEnc := buf[64:144]
 	certEnc := buf[144:234]
+
+	fmt.Printf("4.5.2.2: read bytes:\n\tremote ephemeral pub: %x\n\tstaticEnc: %x\n\tcertEnc: %x\n", handshake.re.Public, staticEnc, certEnc)
+
 	handshake.MixHash(handshake.re.Public[:])
 	handshake.MixKey(handshake.ECDH(handshake.e, handshake.re.Public, true))
 
+	println("wehhh")
 	serverStaticPub, err := handshake.DecryptAndHash(staticEnc)
 	if err != nil {
 		return nil, nil, err
@@ -162,7 +165,6 @@ func (hs *HandshakeState) PerformHandshakeInitiator(r io.ReadWriter, authorityPu
 	if err != nil {
 		return nil, nil, err
 	}
-	println("wehhh")
 	m := &SIGNATURE_NOISE_MESSAGE{}
 	err = m.Decode(sigbytes)
 	if err != nil {
@@ -230,9 +232,7 @@ func (hs *HandshakeState) PerformHandshakeResponder(r io.ReadWriter, cert *SIGNA
 		return nil, nil, err
 	}
 
-	println(len(buf))
 	buf = append(buf, handshake.EncryptAndHash(certBytes)...)
-	println(len(buf))
 
 	r.Write(buf)
 	tempk1, tempk2 := HKDF(handshake.ck[:], []byte{})
@@ -310,10 +310,15 @@ func (cs *CipherState) getNonce() []byte {
 	return nonce
 }
 func (cs *CipherState) EncryptWithAd(ad, plaintext []byte) []byte {
-	/// TODO: this may need a new output slice to store the larger ciphertext
+	if len(cs.k) == 0 {
+		return plaintext
+	}
 	return cs.gcm.Seal(plaintext[:0], cs.getNonce(), plaintext, ad)
 }
 func (cs *CipherState) DecryptWithAd(ad, ciphertext []byte) ([]byte, error) {
+	if len(cs.k) == 0 {
+		return ciphertext, nil
+	}
 	out, err := cs.gcm.Open(ciphertext[:0], cs.getNonce(), ciphertext, ad)
 	if err != nil {
 		cs.n--
@@ -396,7 +401,7 @@ func DeserializeAuthorityKey(pubkey string) ([]byte, error) {
 	return decoded[1:], nil
 }
 
-// idk where this is in the docs
+// create and sign a [SIGNATURE_NOISE_MESSAGE]
 // copied from public-pool
 func NewAuthoritySignature(authorityPrivkey *btcec.PrivateKey, staticPubkey []byte, validFrom, notValidAfter uint32) (*SIGNATURE_NOISE_MESSAGE, error) {
 	m := &SIGNATURE_NOISE_MESSAGE{
@@ -418,15 +423,15 @@ func NewAuthoritySignature(authorityPrivkey *btcec.PrivateKey, staticPubkey []by
 	return m, nil
 }
 
-func hmacHash(key, data []byte) []byte {
+func HmacHash(key, data []byte) []byte {
 	hash := hmac.New(sha256.New, key)
 	hash.Write(data)
 	return hash.Sum(nil)
 }
 func HKDF(chainingKey, inputKeyMaterial []byte) ([]byte, []byte) {
-	temp := hmacHash(chainingKey, inputKeyMaterial)
-	out1 := hmacHash(temp, []byte{0x01})
-	out2 := hmacHash(temp, append(out1, 0x02))
+	temp := HmacHash(chainingKey, inputKeyMaterial)
+	out1 := HmacHash(temp, []byte{0x01})
+	out2 := HmacHash(temp, append(out1, 0x02))
 	return out1, out2
 }
 
