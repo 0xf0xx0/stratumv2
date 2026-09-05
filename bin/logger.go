@@ -16,8 +16,8 @@ import (
 )
 
 var (
-	poolhost = "38.51.144.232" /// public-pool.io
-	poolport = 23331
+	poolhost = "62.2.188.226" /// blitzpool.yourdevice.ch
+	poolport = 3333
 	reqid    = uint32(0)
 	addr     = func() *address.AddressTaproot {
 		b, _ := hex.DecodeString("8033d13ee81500afe03a9f48ed142b15724816dd9247c9cf55ae447a5b867449")
@@ -29,7 +29,7 @@ var (
 		s.SetString("00000000FFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFF")
 		return s
 	}()
-	authkey = "9c4zpyJ2ndm4e8sP2uNc1VNCGxYjqaxWS6wUCjk8zFj6njFquH6"
+	authkey = "9bCoFxTszKCuffyywH5uS5o6WcU4vsjTH2axxc7wE86y2HhvULU"
 )
 
 func main() {
@@ -37,14 +37,14 @@ func main() {
 	signal.Notify(sigs, syscall.SIGINT, syscall.SIGTERM)
 	setupmsg := stratumv2.SetupConnection{
 		Protocol:              stratumv2.MiningProtocol,
-		MinVersion:            2,
-		MaxVersion:            2,
+		MinVersion:            stratumv2.ProtocolVersion,
+		MaxVersion:            stratumv2.ProtocolVersion,
 		Flags:                 stratumv2.RequiresExtendedChannelsFlag,
 		EndpointPort:          uint16(poolport),
 		EndpointHost:          poolhost,
-		DeviceVendor:          "Hashfox",
-		DeviceHardwareVersion: "Hex",
-		DeviceFirmware:        "esp-miner-v69.420-evil-closed-source-fork",
+		DeviceVendor:          "0xf0xx0",
+		DeviceHardwareVersion: "maybe",
+		DeviceFirmware:        "go-sv2-test",
 		DeviceID:              "bluuchuu",
 	}
 	openchanmsg := stratumv2.OpenExtendedMiningChannel{

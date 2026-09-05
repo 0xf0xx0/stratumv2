@@ -1,9 +1,11 @@
+// a Noise_NX_Secp256k1+EllSwift_ChaChaPoly_SHA256 implementation.
 package stratumv2
 
 import (
 	"crypto/cipher"
 	"crypto/hmac"
 	"encoding/ascii85"
+	"encoding/hex"
 	"errors"
 	"fmt"
 	"io"
@@ -13,6 +15,7 @@ import (
 	"github.com/btcsuite/btcd/btcec/v2"
 	"github.com/btcsuite/btcd/btcec/v2/ellswift"
 	"github.com/btcsuite/btcd/btcec/v2/schnorr"
+	"github.com/decred/dcrd/dcrec/secp256k1/v4"
 	"github.com/minio/sha256-simd"
 	"golang.org/x/crypto/chacha20poly1305"
 )
@@ -108,14 +111,22 @@ func VerifyServerCertificate(cert *SIGNATURE_NOISE_MESSAGE, authorityPubkey [32]
 	hash := sha256.Sum256(buf)
 	return sig.Verify(hash[:], pub), nil
 }
-
+func hexDec(s string) []byte {
+	x, _ := hex.DecodeString(s)
+	return x
+}
 func (hs *HandshakeState) PerformHandshakeInitiator(r io.ReadWriter, authorityPubkey [32]byte) (*CipherState, *CipherState, error) {
 	c1 := &CipherState{}
 	c2 := &CipherState{}
 
 	/// 4.5.1
 	initialChainingKey, hashOutput := handshakeInit()
-	ephemeralKeys, err := GenerateKeypair()
+	// ephemeralKeys, err := GenerateKeypair()
+	var err error
+	ephemeralKeys := &Keypair{
+		Private: secp256k1.PrivKeyFromBytes(hexDec("751811a408603c54c4a07cd8d24757760d9f86e76192265bf1961452df5923c6")),
+		Public:  [64]byte(hexDec("498e756a36e7a65c7521ed4343f14960dd784d7eb24cd87a4f7fad5c226cc33c9466c7d8492c836cc1912c47ee823ee3362bb24b5330e80b3505f9c52cc1e6d0")),
+	}
 	if err != nil {
 		return nil, nil, err
 	}
@@ -193,7 +204,12 @@ func (hs *HandshakeState) PerformHandshakeResponder(r io.ReadWriter, cert *SIGNA
 	/// 4.5.1
 	initialChainingKey, hashOutput := handshakeInit()
 
-	ephemeralKeys, err := GenerateKeypair()
+	// ephemeralKeys, err := GenerateKeypair()
+	var err error
+	ephemeralKeys := &Keypair{
+		Private: secp256k1.PrivKeyFromBytes(hexDec("8550d0f282bef7572b3786fa204b032d8ca647d5c7b4e997a47f7bf6d67dcd2f")),
+		Public:  [64]byte(hexDec("88f03280cdf299d2434c970c3027ec722ff92c8c42de8d1ffe1100f6dd23bb91e8271ca1b711ea2b2904c108e508a1bff37e6d17e7c850d9ff69856d0f8c32f9")),
+	}
 	if err != nil {
 		return nil, nil, err
 	}
@@ -293,14 +309,15 @@ type CipherState struct {
 	gcm cipher.AEAD
 }
 
-func (cs *CipherState) InitializeKey(k []byte) {
+func (cs *CipherState) InitializeKey(k []byte) error {
 	cs.k = k[:]
 	cs.n = 0
 	var err error
 	cs.gcm, err = chacha20poly1305.New(cs.k)
 	if err != nil {
-		panic(err)
+		return err
 	}
+	return nil
 }
 func (cs *CipherState) getNonce() []byte {
 	/// "...with nonce n encoded as 32 zero bits, followed by a little-endian 64-bit value."
@@ -400,6 +417,11 @@ func DeserializeAuthorityKey(pubkey string) ([]byte, error) {
 	}
 	return decoded[1:], nil
 }
+
+// func DecodeAuthorityPrivkey(privkey []byte) (*btcec.PrivateKey, error) {
+// 	priv := btcec.PrivKeyFromBytes(privkey)
+// 	pub := ellswift.	return
+// }
 
 // create and sign a [SIGNATURE_NOISE_MESSAGE]
 // copied from public-pool
