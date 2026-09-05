@@ -2,9 +2,9 @@
 package stratumv2
 
 import (
+	"bytes"
 	"crypto/cipher"
 	"crypto/hmac"
-	"encoding/ascii85"
 	"encoding/hex"
 	"errors"
 	"fmt"
@@ -15,7 +15,6 @@ import (
 	"github.com/btcsuite/btcd/btcec/v2"
 	"github.com/btcsuite/btcd/btcec/v2/ellswift"
 	"github.com/btcsuite/btcd/btcec/v2/schnorr"
-	"github.com/decred/dcrd/dcrec/secp256k1/v4"
 	"github.com/minio/sha256-simd"
 	"golang.org/x/crypto/chacha20poly1305"
 )
@@ -49,21 +48,21 @@ func (m *SIGNATURE_NOISE_MESSAGE) Encode() ([]byte, error) {
 }
 
 type Keypair struct {
-	Private *btcec.PrivateKey
-	PublicX [32]byte // X-coordinate of the public key
-	Public  [64]byte // EllSwift encoded serialization of the X-coordinate of EC point
+	Private        *btcec.PrivateKey
+	Public         *btcec.PublicKey
+	publicX        []byte   // X-coordinate of the public key
+	PublicEllswift [64]byte // EllSwift encoded serialization of the X-coordinate of EC point
 }
 
-func GenerateKeypair() (kp *Keypair, err error) {
-	secret_key, serialized_pubkey, err := ellswift.EllswiftCreate()
-	if err != nil {
-		return nil, err
+func (kp *Keypair) SerializeEllswift() []byte {
+	return kp.PublicEllswift[:]
+}
+func (kp *Keypair) PublicKeyBytes() []byte {
+	if kp.publicX != nil {
+		return kp.publicX
 	}
-
-	publicX := [32]byte{}
-	b := secret_key.PubKey().X().FillBytes(publicX[:])
-	publicX = [32]byte(b)
-	return &Keypair{Private: secret_key, Public: serialized_pubkey, PublicX: publicX}, nil
+	kp.publicX = kp.Public.X().FillBytes(make([]byte, 32))
+	return kp.publicX
 }
 
 type HandshakeState struct {
@@ -111,151 +110,123 @@ func VerifyServerCertificate(cert *SIGNATURE_NOISE_MESSAGE, authorityPubkey [32]
 	hash := sha256.Sum256(buf)
 	return sig.Verify(hash[:], pub), nil
 }
-func hexDec(s string) []byte {
-	x, _ := hex.DecodeString(s)
-	return x
-}
-func (hs *HandshakeState) PerformHandshakeInitiator(r io.ReadWriter, authorityPubkey [32]byte) (*CipherState, *CipherState, error) {
+func (hs *HandshakeState) PerformHandshakeInitiator(rw io.ReadWriter, authorityPubkey [32]byte) (*CipherState, *CipherState, error) {
 	c1 := &CipherState{}
 	c2 := &CipherState{}
 
-	/// 4.5.1
-	initialChainingKey, hashOutput := handshakeInit()
-	// ephemeralKeys, err := GenerateKeypair()
-	var err error
-	ephemeralKeys := &Keypair{
-		Private: secp256k1.PrivKeyFromBytes(hexDec("751811a408603c54c4a07cd8d24757760d9f86e76192265bf1961452df5923c6")),
-		Public:  [64]byte(hexDec("498e756a36e7a65c7521ed4343f14960dd784d7eb24cd87a4f7fad5c226cc33c9466c7d8492c836cc1912c47ee823ee3362bb24b5330e80b3505f9c52cc1e6d0")),
-	}
-	if err != nil {
-		return nil, nil, err
-	}
-	handshake := &HandshakeState{
-		ck: [32]byte(initialChainingKey),
-		h:  [32]byte(hashOutput),
-		cs: &CipherState{},
-		e:  *ephemeralKeys,
-	}
-
-	fmt.Printf("4.5.1.1: ephemeral pub (ell): %x\n\tX: %x\n", ephemeralKeys.Public, ephemeralKeys.PublicX)
+	/// 4.5.1 Handshake Act 1: NX-handshake part 1
+	ck, h := handshakeInit()
+	hs.cs = &CipherState{}
+	hs.ck = [32]byte(ck)
+	hs.h = [32]byte(h)
 
 	/// 4.5.1.1
-	buf := make([]byte, 0, 64)
-	buf = append(buf, handshake.e.Public[:]...)
-	handshake.MixHash(handshake.e.Public[:])
-	buf = append(buf, handshake.EncryptAndHash([]byte{})...)
-	r.Write(buf)
+	/// "initializes empty output buffer"
+	out := bytes.Buffer{}
+	/// "generates ephemeral keypair e, appends e.public_key.serializeEllSwift() to the buffer (64 bytes plaintext EllSwift encoded public key)"
+	// ephemeral := GenerateKeypair()
+	ephemeral := GenerateKeypairFromBytes([32]byte(hexDec("751811a408603c54c4a07cd8d24757760d9f86e76192265bf1961452df5923c6")))
+	println(fmt.Sprintf("initiatior ellswift: %x", ephemeral.SerializeEllswift()))
+	out.Write(ephemeral.SerializeEllswift())
+
+	/// "calls MixHash(e.public_key)"
+	hs.MixHash(ephemeral.PublicKeyBytes())
+	/// "calls EncryptAndHash() with empty payload and appends the ciphertext to the buffer"
+	/// could be hs.MixHash([]byte{})
+	hs.EncryptAndHash([]byte{})
+
+	rw.Write(out.Bytes())
+	out.Reset()
 
 	/// 4.5.2.2
-	/// FIXME: spec claims this is 170 bytes, but we actually read 234?
-	buf = make([]byte, 234)
-	_, err = io.ReadFull(r, buf)
+	pt2 := make([]byte, 234)
+	rw.Read(pt2)
+	remoteEphemeral := pt2[:64]
+	encryptedStatic := pt2[64:144]
+	encryptedCert := pt2[144:]
+
+	hs.MixHash(remoteEphemeral)
+	hs.MixKey(hs.ECDH(ephemeral, [64]byte(remoteEphemeral), true))
+	plainStatic, err := hs.DecryptAndHash(encryptedStatic)
 	if err != nil {
 		return nil, nil, err
 	}
-	handshake.re.Public = [64]byte(buf[:64])
-	staticEnc := buf[64:144]
-	certEnc := buf[144:234]
+	fmt.Println(SerializeAuthorityKey(plainStatic))
+	plainCert, err := hs.DecryptAndHash(encryptedCert)
+	cert := &SIGNATURE_NOISE_MESSAGE{}
+	cert.Decode(plainCert)
+	fmt.Printf("%+v", cert)
 
-	fmt.Printf("4.5.2.2: read bytes:\n\tremote ephemeral pub: %x\n\tstaticEnc: %x\n\tcertEnc: %x\n", handshake.re.Public, staticEnc, certEnc)
+	temp_k1, temp_k2 := HKDF(hs.ck[:], []byte{})
 
-	handshake.MixHash(handshake.re.Public[:])
-	handshake.MixKey(handshake.ECDH(handshake.e, handshake.re.Public, true))
-
-	println("wehhh")
-	serverStaticPub, err := handshake.DecryptAndHash(staticEnc)
-	if err != nil {
-		return nil, nil, err
-	}
-	handshake.rs.Public = [64]byte(serverStaticPub)
-	handshake.MixKey(handshake.ECDH(handshake.e, handshake.rs.Public, true))
-
-	/// FIXME: errors
-	sigbytes, err := handshake.DecryptAndHash(certEnc)
-	println("weh")
-	if err != nil {
-		return nil, nil, err
-	}
-	m := &SIGNATURE_NOISE_MESSAGE{}
-	err = m.Decode(sigbytes)
-	if err != nil {
-		return nil, nil, err
-	}
-
-	ok, err := handshake.AuthServerCertificate(m, serverStaticPub, authorityPubkey)
-	if err != nil {
-		return nil, nil, err
-	}
-	if !ok {
-		return nil, nil, errors.New("invalid server certificate")
-	}
-
-	tempk1, tempk2 := HKDF(handshake.ck[:], []byte{})
-
-	c1.InitializeKey(tempk1)
-	c2.InitializeKey(tempk2)
-
+	c1.InitializeKey(temp_k1)
+	c2.InitializeKey(temp_k2)
 	return c1, c2, nil
 }
-func (hs *HandshakeState) PerformHandshakeResponder(r io.ReadWriter, cert *SIGNATURE_NOISE_MESSAGE, staticKeys *Keypair) (*CipherState, *CipherState, error) {
-	c2s := &CipherState{}
-	s2c := &CipherState{}
+func (hs *HandshakeState) PerformHandshakeResponder(rw io.ReadWriter, cert *SIGNATURE_NOISE_MESSAGE, staticKeys *Keypair) (c2s *CipherState, s2c *CipherState, err error) {
+	c2s = &CipherState{}
+	s2c = &CipherState{}
 
-	/// 4.5.1
-	initialChainingKey, hashOutput := handshakeInit()
+	/// 4.5.1 Handshake Act 1: NX-handshake part 1
+	ck, h := handshakeInit()
+	hs.cs = &CipherState{}
+	hs.ck = [32]byte(ck)
+	hs.h = [32]byte(h)
 
-	// ephemeralKeys, err := GenerateKeypair()
-	var err error
-	ephemeralKeys := &Keypair{
-		Private: secp256k1.PrivKeyFromBytes(hexDec("8550d0f282bef7572b3786fa204b032d8ca647d5c7b4e997a47f7bf6d67dcd2f")),
-		Public:  [64]byte(hexDec("88f03280cdf299d2434c970c3027ec722ff92c8c42de8d1ffe1100f6dd23bb91e8271ca1b711ea2b2904c108e508a1bff37e6d17e7c850d9ff69856d0f8c32f9")),
-	}
-	if err != nil {
-		return nil, nil, err
-	}
-	handshake := &HandshakeState{
-		ck: [32]byte(initialChainingKey),
-		h:  [32]byte(hashOutput),
-		cs: &CipherState{},
-		e:  *ephemeralKeys,
-		s:  *staticKeys,
-	}
+	println(fmt.Sprintf("Init ck=%x", hs.ck))
+	println(fmt.Sprintf("Init  h=%x", hs.h))
 
 	/// 4.5.1.2
-	remoteEPubkey := make([]byte, 64)
-	_, err = io.ReadFull(r, remoteEPubkey)
-	if err != nil {
-		return nil, nil, err
-	}
-	handshake.re.Public = [64]byte(remoteEPubkey)
-	handshake.MixHash(remoteEPubkey)
-	_, err = handshake.DecryptAndHash([]byte{})
-	if err != nil {
-		return nil, nil, err
-	}
+	remoteEphemeral := make([]byte, 64)
+	rw.Read(remoteEphemeral)
+	println(fmt.Sprintf("got initiator ellswift: %x", remoteEphemeral))
+	hs.MixHash(remoteEphemeral)
+	println(fmt.Sprintf("After MixHash(re): h=%x", hs.h))
 
+	hs.DecryptAndHash([]byte{})
+	println(fmt.Sprintf("After DecryptAndHash(empty): h=%x", hs.h))
+
+	/// 4.5.2 Handshake Act 2: NX-handshake part 2
 	/// 4.5.2.1
-	buf := make([]byte, 0, 234)
-	buf = append(buf, handshake.e.Public[:]...)
-	handshake.MixHash(handshake.e.Public[:])
-	handshake.MixKey(handshake.ECDH(handshake.e, handshake.re.Public, false))
+	out := bytes.Buffer{}
+	// ephemeral := GenerateKeypair()
+	ephemeral := GenerateKeypairFromBytes([32]byte(hexDec("8550d0f282bef7572b3786fa204b032d8ca647d5c7b4e997a47f7bf6d67dcd2f")))
 
-	/// static keys come from user
-	buf = append(buf, handshake.EncryptAndHash(handshake.s.Public[:])...)
-	handshake.MixKey(handshake.ECDH(handshake.s, handshake.re.Public, false))
+	hs.MixHash(ephemeral.PublicKeyBytes())
+	println(fmt.Sprintf("After MixHash(se): h=%x", hs.h))
+
+	hs.MixKey(hs.ECDH(ephemeral, [64]byte(remoteEphemeral), false))
+	println(fmt.Sprintf("After MixKey(ee): ck=%x", hs.ck))
+
+	println(fmt.Sprintf("h (AD for encrypt static): h=%x", hs.h))
+	println(fmt.Sprintf("Static pub (plaintext): %x", staticKeys.SerializeEllswift()))
+
+	x := hs.EncryptAndHash(staticKeys.SerializeEllswift())
+	out.Write(x)
+	println(fmt.Sprintf("Encrypted static (%d bytes): %x", len(x), x))
+
+	hs.MixKey(hs.ECDH(staticKeys, [64]byte(remoteEphemeral), false))
+	println(fmt.Sprintf("After MixKey(es): ck=%x", hs.ck))
+
 	certBytes, err := cert.Encode()
 	if err != nil {
 		return nil, nil, err
 	}
 
-	buf = append(buf, handshake.EncryptAndHash(certBytes)...)
+	println(fmt.Sprintf("h (AD for encrypt cert): h=%x", hs.h))
+	println(fmt.Sprintf("Cert payload (%d bytes): %x", len(certBytes), certBytes))
 
-	r.Write(buf)
-	tempk1, tempk2 := HKDF(handshake.ck[:], []byte{})
+	x1 := hs.EncryptAndHash(certBytes)
+	out.Write(x1)
+	println(fmt.Sprintf("Encrypted cert (%d bytes)", len(x1)))
 
-	c2s.InitializeKey(tempk1)
-	s2c.InitializeKey(tempk2)
+	rw.Write(out.Bytes())
+	out.Reset()
 
+	temp_k1, temp_k2 := HKDF(ck, []byte{})
+
+	c2s.InitializeKey(temp_k1)
+	s2c.InitializeKey(temp_k2)
 	// initiator->responder, responder->initiator
 	// (c2s, s2c)
 	return c2s, s2c, nil
@@ -293,8 +264,8 @@ func (hs *HandshakeState) MixKey(inputKeyMaterial []byte) {
 	hs.ck = [32]byte(ck)
 	hs.cs.InitializeKey(temp)
 }
-func (hs *HandshakeState) ECDH(k Keypair, rk [64]byte, initiator bool) []byte {
-	hash, err := ellswift.V2Ecdh(k.Private, rk, k.Public, initiator)
+func (hs *HandshakeState) ECDH(k *Keypair, rk [64]byte, initiator bool) []byte {
+	hash, err := ellswift.V2Ecdh(k.Private, rk, [64]byte(k.SerializeEllswift()), initiator)
 	if err != nil {
 		panic(err)
 	}
@@ -456,17 +427,76 @@ func HKDF(chainingKey, inputKeyMaterial []byte) ([]byte, []byte) {
 	out2 := HmacHash(temp, append(out1, 0x02))
 	return out1, out2
 }
-
+func TaggedHash(a, b, c []byte) []byte {
+	hash := sha256.New()
+	/// SHA256("bip324_ellswift_xonly_ecdh")
+	tag := hash.Sum([]byte("bip324_ellswift_xonly_ecdh"))[:]
+	hash.Reset()
+	/// SHA256(concatenate(tag, tag, a, b, c))
+	hash.Write(tag)
+	hash.Write(tag)
+	hash.Write(a)
+	hash.Write(b)
+	hash.Write(c)
+	return hash.Sum(nil)[:]
+}
 func handshakeInit() ([]byte, []byte) {
 	hash := sha256.New()
-	dst := make([]byte, ascii85.MaxEncodedLen(len(ProtocolName)))
-
-	ascii85.Encode(dst, []byte(ProtocolName))
-	hash.Write(dst)
+	hash.Write([]byte(ProtocolName))
 	digest := hash.Sum(nil)
 	initialChainingKey := digest[:]
 	hash.Reset()
 	hash.Write(digest)
 	hashOutput := hash.Sum(nil)
 	return initialChainingKey, hashOutput
+}
+
+// generates and returns a fresh secp256k1 keypair
+func GenerateKeypair() *Keypair {
+	/// only error comes from crypto/rand Read, which never errors
+	priv, ellswiftPub, _ := ellswift.EllswiftCreate()
+	return &Keypair{
+		Private:        priv,
+		Public:         priv.PubKey(),
+		PublicEllswift: ellswiftPub,
+	}
+}
+
+// TODO: only for testing?
+func GenerateKeypairFromBytes(b [32]byte) *Keypair {
+	priv, _ := btcec.PrivKeyFromBytes(b[:])
+
+	// Fetch the x-coordinate of the public key.
+	x := getXCoord(priv)
+
+	// Get the ElligatorSwift encoding of the public key.
+	// FIXME: non-deterministic
+	u, t, err := ellswift.XElligatorSwift(x)
+	if err != nil {
+		return nil
+	}
+
+	uBytes := u.Bytes()
+	tBytes := t.Bytes()
+
+	// ellswift_pub = bytes(u) || bytes(t), its encoding as 64 bytes
+	var ellswiftPub [64]byte
+	copy(ellswiftPub[0:32], (*uBytes)[:])
+	copy(ellswiftPub[32:64], (*tBytes)[:])
+
+	return &Keypair{
+		Private:        priv,
+		Public:         priv.PubKey(),
+		PublicEllswift: ellswiftPub,
+	}
+}
+func getXCoord(privKey *btcec.PrivateKey) *btcec.FieldVal {
+	var result btcec.JacobianPoint
+	btcec.ScalarBaseMultNonConst(&privKey.Key, &result)
+	result.ToAffine()
+	return &result.X
+}
+func hexDec(s string) []byte {
+	x, _ := hex.DecodeString(s)
+	return x
 }
