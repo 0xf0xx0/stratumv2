@@ -54,7 +54,7 @@ func main() {
 			NominalHashRate: 1e12,
 			MaxTarget:       maxtarget,
 		},
-		MinExtranonceSize: 4,
+		MinExtranonceSize: 1,
 	}
 	setupPayload, err := setupmsg.Encode()
 	if err != nil {
@@ -74,6 +74,7 @@ func main() {
 		MessageLength: stratumv2.U24(len(openchanPayload)),
 		Payload:       openchanPayload,
 	}
+	_ = openchanFrame
 
 	cliPaw := &stratumv2.HandshakeState{}
 	authorityPubkey, err := stratumv2.DeserializeAuthorityKey(authkey)
@@ -86,14 +87,15 @@ func main() {
 		panic(err)
 	}
 
-	c2s, s2c, err := cliPaw.PerformHandshakeInitiator(conn, [32]byte(authorityPubkey))
+	recv, send, err := cliPaw.PerformHandshakeInitiator(conn, [32]byte(authorityPubkey))
 	if err != nil {
 		panic(err)
 	}
+	_ = send
 
 	go func() {
 		for {
-			frame, err := s2c.DecryptFrame(conn)
+			frame, err := recv.DecryptFrame(conn)
 			if err != nil {
 				panic(err)
 			}
@@ -102,19 +104,21 @@ func main() {
 		}
 	}()
 
-	setupBytes, err := c2s.EncryptFrame(setupFrame)
+	setupBytes, err := send.EncryptFrame(setupFrame)
 	if err != nil {
 		panic(err)
 	}
+	fmt.Printf("%+v", setupmsg)
+	fmt.Printf("%+v", setupFrame)
 	fmt.Printf("TX: %x\n", setupBytes)
 	conn.Write(setupBytes)
 
-	openchanBytes, err := c2s.EncryptFrame(openchanFrame)
-	if err != nil {
-		panic(err)
-	}
-	fmt.Printf("TX: %x\n", openchanBytes)
-	conn.Write(openchanBytes)
+	// openchanBytes, err := recv.EncryptFrame(openchanFrame)
+	// if err != nil {
+	// 	panic(err)
+	// }
+	// fmt.Printf("TX: %x\n", openchanBytes)
+	// conn.Write(openchanBytes)
 
 	<-sigs
 	conn.Close()

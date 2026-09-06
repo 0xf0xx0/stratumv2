@@ -227,15 +227,6 @@ func TestHandshake(t *testing.T) {
 			t.Errorf("expected no error, got %v", err)
 			return
 		}
-		r := make([]byte, stratumv2.PlainTextLenToCipherTextLen(len(data)))
-		rpipe.Read(r)
-		t.Logf("recv: %x (%d bytes)", r, len(r))
-		dec, err := clientRecv.DecryptWithAd([]byte{}, r)
-		if err != nil {
-			t.Errorf("expected no error, got %v", err)
-			return
-		}
-		t.Log(string(dec))
 	})
 	wg.Go(func() {
 		var err error
@@ -244,14 +235,35 @@ func TestHandshake(t *testing.T) {
 			t.Errorf("expected no error, got %v", err)
 			return
 		}
-		enc := srvSend.EncryptWithAd([]byte{}, data)
-		t.Logf("sending: %x (%d bytes)", enc, len(enc))
-		lpipe.Write(enc)
 	})
 	wg.Wait()
 
-	_ = srvSend
-	_ = srvRecv
-	_ = clientSend
-	_ = clientRecv
+	t.Logf("srv key: %x | %x", srvSend.GetKey(), srvSend.GetNonce())
+	t.Logf("cli key: %x | %x", clientSend.GetKey(), clientRecv.GetNonce())
+	enc := srvSend.EncryptWithAd([]byte{}, data)
+	if len(enc) != len(data)+stratumv2.MacLen {
+		t.Errorf("encrypted text len isnt expected")
+		return
+	}
+
+	t.Logf("sending: %x (%d bytes)", enc, len(enc))
+	dec, err := clientSend.DecryptWithAd([]byte{}, enc)
+	if err != nil {
+		t.Errorf("expected no error, got %v", err)
+		return
+	}
+	t.Log(string(dec))
+
+	enc = clientRecv.EncryptWithAd([]byte{}, data)
+	if len(enc) != len(data)+stratumv2.MacLen {
+		t.Errorf("encrypted text len isnt expected")
+		return
+	}
+	t.Logf("sending: %x (%d bytes)", enc, len(enc))
+	dec, err = srvRecv.DecryptWithAd([]byte{}, enc)
+	if err != nil {
+		t.Errorf("expected no error, got %v", err)
+		return
+	}
+	t.Log(string(dec))
 }

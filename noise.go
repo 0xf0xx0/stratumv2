@@ -118,6 +118,8 @@ func (hs *HandshakeState) PerformHandshakeInitiator(rw io.ReadWriter, authorityP
 	hs.cs = &CipherState{}
 	hs.ck = [32]byte(ck)
 	hs.h = [32]byte(h)
+	ck = nil
+	h = nil
 
 	// println(fmt.Sprintf("[Initiator] Init ck=%x", hs.ck))
 	// println(fmt.Sprintf("[Initiator] Init  h=%x", hs.h))
@@ -158,20 +160,20 @@ func (hs *HandshakeState) PerformHandshakeInitiator(rw io.ReadWriter, authorityP
 	// println(fmt.Sprintf("[Initiatior] ee DH shared secret: %x", sharedeeDH))
 	hs.MixKey(sharedeeDH)
 
-	println(fmt.Sprintf("[Initiatior] h=%x", hs.h))
+	// println(fmt.Sprintf("[Initiatior] h=%x", hs.h))
 	plainStatic, err := hs.DecryptAndHash(encryptedStatic)
 	if err != nil {
 		return nil, nil, err
 	}
-	println(fmt.Sprintf("[Initiatior] h=%x", hs.h))
+	// println(fmt.Sprintf("[Initiatior] h=%x", hs.h))
 
 	// println(fmt.Sprintf("[Initiatior] decrypted se: %x", plainStatic))
 
 	sharedesDH := hs.ECDH(ephemeral, [64]byte(plainStatic), true)
-	println(fmt.Sprintf("[Initiatior] es DH shared secret: %x", sharedesDH))
+	// println(fmt.Sprintf("[Initiatior] es DH shared secret: %x", sharedesDH))
 	hs.MixKey(sharedesDH)
-	println(fmt.Sprintf("[Initiatior] After MixKey(es): ck=%x", hs.ck))
-	println(fmt.Sprintf("[Initiatior] h (AD for decrypt cert): h=%x", hs.h))
+	// println(fmt.Sprintf("[Initiatior] After MixKey(es): ck=%x", hs.ck))
+	// println(fmt.Sprintf("[Initiatior] h (AD for decrypt cert): h=%x", hs.h))
 
 	// fmt.Println(SerializeAuthorityKey(plainStatic))
 	plainCert, err := hs.DecryptAndHash(encryptedCert)
@@ -183,9 +185,10 @@ func (hs *HandshakeState) PerformHandshakeInitiator(rw io.ReadWriter, authorityP
 		println(len(encryptedCert))
 		return nil, nil, err
 	}
-	println(fmt.Sprintf("[Initiatior] got cert: %+v", cert))
+	// println(fmt.Sprintf("[Initiatior] got cert: %+v", cert))
 
 	temp_k1, temp_k2 := HKDF(hs.ck[:], []byte{})
+	// println(fmt.Sprintf("[Initiator] k1=%x, k2=%x", temp_k1, temp_k2))
 
 	send.InitializeKey(temp_k1)
 	recv.InitializeKey(temp_k2)
@@ -200,6 +203,8 @@ func (hs *HandshakeState) PerformHandshakeResponder(rw io.ReadWriter, cert *SIGN
 	hs.cs = &CipherState{}
 	hs.ck = [32]byte(ck)
 	hs.h = [32]byte(h)
+	ck = nil
+	h = nil
 
 	// println(fmt.Sprintf("[Responder] Init ck=%x", hs.ck))
 	// println(fmt.Sprintf("[Responder] Init  h=%x", hs.h))
@@ -232,33 +237,29 @@ func (hs *HandshakeState) PerformHandshakeResponder(rw io.ReadWriter, cert *SIGN
 	// println(fmt.Sprintf("[Responder] h (AD for encrypt static): h=%x", hs.h))
 	// println(fmt.Sprintf("[Responder] Static pub (plaintext): %x", staticKeys.SerializeEllswift()))
 
-	println(fmt.Sprintf("[Responder] h=%x", hs.h))
-	x := hs.EncryptAndHash(staticKeys.SerializeEllswift())
-	out.Write(x)
-	println(fmt.Sprintf("[Responder] h=%x", hs.h))
+	out.Write(hs.EncryptAndHash(staticKeys.SerializeEllswift()))
 	// println(fmt.Sprintf("[Responder] Encrypted static (%d bytes): %x", len(x), x))
 
 	sharedesDH := hs.ECDH(staticKeys, [64]byte(remoteEphemeral), false)
-	println(fmt.Sprintf("[Responder] es DH shared secret (responder): %x", sharedesDH))
+	// println(fmt.Sprintf("[Responder] es DH shared secret (responder): %x", sharedesDH))
 
 	hs.MixKey(sharedesDH)
-	println(fmt.Sprintf("[Responder] After MixKey(es): ck=%x", hs.ck))
+	// println(fmt.Sprintf("[Responder] After MixKey(es): ck=%x", hs.ck))
 
 	certBytes, err := cert.Encode()
 	if err != nil {
 		return nil, nil, err
 	}
 
-	println(fmt.Sprintf("[Responder] h (AD for encrypt cert): h=%x", hs.h))
+	// println(fmt.Sprintf("[Responder] h (AD for encrypt cert): h=%x", hs.h))
 	// println(fmt.Sprintf("[Responder] Cert payload (%d bytes): %x", len(certBytes), certBytes))
 
-	x1 := hs.EncryptAndHash(certBytes)
-	out.Write(x1)
-	println(fmt.Sprintf("[Responder] Encrypted cert (%d bytes)", len(x1)))
+	out.Write(hs.EncryptAndHash(certBytes))
 	rw.Write(out.Bytes())
 	out.Reset()
 
-	temp_k1, temp_k2 := HKDF(ck, []byte{})
+	temp_k1, temp_k2 := HKDF(hs.ck[:], []byte{})
+	// println(fmt.Sprintf("[Responder] k1=%x, k2=%x", temp_k1, temp_k2))
 
 	send.InitializeKey(temp_k1)
 	recv.InitializeKey(temp_k2)
@@ -315,6 +316,16 @@ type CipherState struct {
 	gcm cipher.AEAD
 }
 
+// TODO: only for testing, remove
+func (cs *CipherState) GetKey() []byte {
+	return cs.k
+}
+func (cs *CipherState) GetNonce() []byte {
+	nonce := make([]byte, 12)
+	ble.PutUint64(nonce[4:], cs.n)
+	return nonce
+}
+
 func (cs *CipherState) InitializeKey(k []byte) error {
 	cs.k = k[:]
 	cs.n = 0
@@ -367,14 +378,14 @@ func (cs *CipherState) DecryptFrame(r io.Reader) (Frame, error) {
 	header := make([]byte, NoiseHeaderSize)
 	read, err := r.Read(header)
 	if err != nil {
-		return Frame{}, err
+		return Frame{}, fmt.Errorf("error while reading header: %s", err)
 	}
 	if read < NoiseHeaderSize {
 		return Frame{}, errors.New("ciphertext too short")
 	}
 	decrypted, err := cs.DecryptWithAd([]byte{}, header)
 	if err != nil {
-		return Frame{}, err
+		return Frame{}, fmt.Errorf("error while decrypting header: %s", err)
 	}
 	frame.DecodeHeader(decrypted)
 
@@ -383,14 +394,14 @@ func (cs *CipherState) DecryptFrame(r io.Reader) (Frame, error) {
 	payload := make([]byte, payloadLen)
 	read, err = r.Read(payload)
 	if err != nil {
-		return Frame{}, err
+		return Frame{}, fmt.Errorf("error while reading payload: %s", err)
 	}
 	if read < payloadLen {
 		return Frame{}, errors.New("ciphertext too short")
 	}
 	decrypted, err = cs.DecryptWithAd([]byte{}, payload)
 	if err != nil {
-		return Frame{}, err
+		return Frame{}, fmt.Errorf("error while decrypting payload: %s", err)
 	}
 	frame.Payload = decrypted
 	return frame, nil
