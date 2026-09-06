@@ -109,9 +109,9 @@ func VerifyServerCertificate(cert *SIGNATURE_NOISE_MESSAGE, authorityPubkey [32]
 	hash := sha256.Sum256(buf)
 	return sig.Verify(hash[:], pub), nil
 }
-func (hs *HandshakeState) PerformHandshakeInitiator(rw io.ReadWriter, authorityPubkey [32]byte) (*CipherState, *CipherState, error) {
-	c1 := &CipherState{}
-	c2 := &CipherState{}
+func (hs *HandshakeState) PerformHandshakeInitiator(rw io.ReadWriter, authorityPubkey [32]byte) (send, recv *CipherState, err error) {
+	send = &CipherState{}
+	recv = &CipherState{}
 
 	/// 4.5.1 Handshake Act 1: NX-handshake part 1
 	ck, h := handshakeInit()
@@ -119,25 +119,25 @@ func (hs *HandshakeState) PerformHandshakeInitiator(rw io.ReadWriter, authorityP
 	hs.ck = [32]byte(ck)
 	hs.h = [32]byte(h)
 
-	println(fmt.Sprintf("[Initiator] Init ck=%x", hs.ck))
-	println(fmt.Sprintf("[Initiator] Init  h=%x", hs.h))
+	// println(fmt.Sprintf("[Initiator] Init ck=%x", hs.ck))
+	// println(fmt.Sprintf("[Initiator] Init  h=%x", hs.h))
 
 	/// 4.5.1.1
 	/// "initializes empty output buffer"
 	out := bytes.Buffer{}
 	/// "generates ephemeral keypair e, appends e.public_key.serializeEllSwift() to the buffer (64 bytes plaintext EllSwift encoded public key)"
 	ephemeral := GenerateKeypair()
-	println(fmt.Sprintf("[Initiatior] ellswift: %x", ephemeral.SerializeEllswift()))
+	// println(fmt.Sprintf("[Initiatior] ellswift: %x", ephemeral.SerializeEllswift()))
 	out.Write(ephemeral.SerializeEllswift())
 
 	/// "calls MixHash(e.public_key)"
 	/// ellswift ig?
 	hs.MixHash(ephemeral.SerializeEllswift())
-	println(fmt.Sprintf("[Initiatior] After MixHash(e): h=%x", hs.h))
+	// println(fmt.Sprintf("[Initiatior] After MixHash(e): h=%x", hs.h))
 	/// "calls EncryptAndHash() with empty payload and appends the ciphertext to the buffer"
 	/// could be hs.MixHash([]byte{})
 	hs.EncryptAndHash([]byte{})
-	println(fmt.Sprintf("[Initiatior] After EncryptAndHash(empty): h=%x", hs.h))
+	// println(fmt.Sprintf("[Initiatior] After EncryptAndHash(empty): h=%x", hs.h))
 
 	rw.Write(out.Bytes())
 	out.Reset()
@@ -150,25 +150,28 @@ func (hs *HandshakeState) PerformHandshakeInitiator(rw io.ReadWriter, authorityP
 	encryptedCert := pt2[144:]
 
 	hs.MixHash(remoteEphemeral)
-	println(fmt.Sprintf("[Initiatior] got se: %x", remoteEphemeral))
-	println(fmt.Sprintf("[Initiatior] got es: %x", encryptedStatic))
-	println(fmt.Sprintf("[Initiatior] After MixHash(se): h=%x", hs.h))
+	// println(fmt.Sprintf("[Initiatior] got se: %x", remoteEphemeral))
+	// println(fmt.Sprintf("[Initiatior] got es: %x", encryptedStatic))
+	// println(fmt.Sprintf("[Initiatior] After MixHash(se): h=%x", hs.h))
 
 	sharedeeDH := hs.ECDH(ephemeral, [64]byte(remoteEphemeral), true)
-	println(fmt.Sprintf("[Initiatior] ee DH shared secret: %x", sharedeeDH))
+	// println(fmt.Sprintf("[Initiatior] ee DH shared secret: %x", sharedeeDH))
 	hs.MixKey(sharedeeDH)
 
+	println(fmt.Sprintf("[Initiatior] h=%x", hs.h))
 	plainStatic, err := hs.DecryptAndHash(encryptedStatic)
 	if err != nil {
 		return nil, nil, err
 	}
+	println(fmt.Sprintf("[Initiatior] h=%x", hs.h))
 
-	println(fmt.Sprintf("[Initiatior] decrypted se: %x", plainStatic))
+	// println(fmt.Sprintf("[Initiatior] decrypted se: %x", plainStatic))
 
 	sharedesDH := hs.ECDH(ephemeral, [64]byte(plainStatic), true)
 	println(fmt.Sprintf("[Initiatior] es DH shared secret: %x", sharedesDH))
 	hs.MixKey(sharedesDH)
 	println(fmt.Sprintf("[Initiatior] After MixKey(es): ck=%x", hs.ck))
+	println(fmt.Sprintf("[Initiatior] h (AD for decrypt cert): h=%x", hs.h))
 
 	// fmt.Println(SerializeAuthorityKey(plainStatic))
 	plainCert, err := hs.DecryptAndHash(encryptedCert)
@@ -184,13 +187,13 @@ func (hs *HandshakeState) PerformHandshakeInitiator(rw io.ReadWriter, authorityP
 
 	temp_k1, temp_k2 := HKDF(hs.ck[:], []byte{})
 
-	c1.InitializeKey(temp_k1)
-	c2.InitializeKey(temp_k2)
-	return c1, c2, nil
+	send.InitializeKey(temp_k1)
+	recv.InitializeKey(temp_k2)
+	return send, recv, nil
 }
-func (hs *HandshakeState) PerformHandshakeResponder(rw io.ReadWriter, cert *SIGNATURE_NOISE_MESSAGE, staticKeys *Keypair) (c2s *CipherState, s2c *CipherState, err error) {
-	c2s = &CipherState{}
-	s2c = &CipherState{}
+func (hs *HandshakeState) PerformHandshakeResponder(rw io.ReadWriter, cert *SIGNATURE_NOISE_MESSAGE, staticKeys *Keypair) (send, recv *CipherState, err error) {
+	send = &CipherState{}
+	recv = &CipherState{}
 
 	/// 4.5.1 Handshake Act 1: NX-handshake part 1
 	ck, h := handshakeInit()
@@ -198,40 +201,42 @@ func (hs *HandshakeState) PerformHandshakeResponder(rw io.ReadWriter, cert *SIGN
 	hs.ck = [32]byte(ck)
 	hs.h = [32]byte(h)
 
-	println(fmt.Sprintf("[Responder] Init ck=%x", hs.ck))
-	println(fmt.Sprintf("[Responder] Init  h=%x", hs.h))
+	// println(fmt.Sprintf("[Responder] Init ck=%x", hs.ck))
+	// println(fmt.Sprintf("[Responder] Init  h=%x", hs.h))
 
 	/// 4.5.1.2
 	remoteEphemeral := make([]byte, 64)
 	rw.Read(remoteEphemeral)
-	println(fmt.Sprintf("[Responder] got ie: %x", remoteEphemeral))
+	// println(fmt.Sprintf("[Responder] got ie: %x", remoteEphemeral))
 	hs.MixHash(remoteEphemeral)
-	println(fmt.Sprintf("[Responder] After MixHash(ie): h=%x", hs.h))
+	// println(fmt.Sprintf("[Responder] After MixHash(ie): h=%x", hs.h))
 
 	hs.DecryptAndHash([]byte{})
-	println(fmt.Sprintf("[Responder] After DecryptAndHash(empty): h=%x", hs.h))
+	// println(fmt.Sprintf("[Responder] After DecryptAndHash(empty): h=%x", hs.h))
 
 	/// 4.5.2 Handshake Act 2: NX-handshake part 2
 	/// 4.5.2.1
 	out := bytes.Buffer{}
 	ephemeral := GenerateKeypair()
-	println(fmt.Sprintf("[Responder] se: %x", ephemeral.SerializeEllswift()))
-
-	hs.MixHash(ephemeral.SerializeEllswift())
-	println(fmt.Sprintf("[Responder] After MixHash(se): h=%x", hs.h))
+	// println(fmt.Sprintf("[Responder] se: %x", ephemeral.SerializeEllswift()))
 	out.Write(ephemeral.SerializeEllswift())
 
+	hs.MixHash(ephemeral.SerializeEllswift())
+	// println(fmt.Sprintf("[Responder] After MixHash(se): h=%x", hs.h))
+
 	sharedeeDH := hs.ECDH(ephemeral, [64]byte(remoteEphemeral), false)
-	println(fmt.Sprintf("[Responder] ee DH shared secret: %x", sharedeeDH))
+	// println(fmt.Sprintf("[Responder] ee DH shared secret: %x", sharedeeDH))
 	hs.MixKey(sharedeeDH)
-	println(fmt.Sprintf("[Responder] After MixKey(ee): ck=%x", hs.ck))
+	// println(fmt.Sprintf("[Responder] After MixKey(ee): ck=%x", hs.ck))
 
-	println(fmt.Sprintf("[Responder] h (AD for encrypt static): h=%x", hs.h))
-	println(fmt.Sprintf("[Responder] Static pub (plaintext): %x", staticKeys.SerializeEllswift()))
+	// println(fmt.Sprintf("[Responder] h (AD for encrypt static): h=%x", hs.h))
+	// println(fmt.Sprintf("[Responder] Static pub (plaintext): %x", staticKeys.SerializeEllswift()))
 
+	println(fmt.Sprintf("[Responder] h=%x", hs.h))
 	x := hs.EncryptAndHash(staticKeys.SerializeEllswift())
 	out.Write(x)
-	println(fmt.Sprintf("[Responder] Encrypted static (%d bytes): %x", len(x), x))
+	println(fmt.Sprintf("[Responder] h=%x", hs.h))
+	// println(fmt.Sprintf("[Responder] Encrypted static (%d bytes): %x", len(x), x))
 
 	sharedesDH := hs.ECDH(staticKeys, [64]byte(remoteEphemeral), false)
 	println(fmt.Sprintf("[Responder] es DH shared secret (responder): %x", sharedesDH))
@@ -255,11 +260,11 @@ func (hs *HandshakeState) PerformHandshakeResponder(rw io.ReadWriter, cert *SIGN
 
 	temp_k1, temp_k2 := HKDF(ck, []byte{})
 
-	c2s.InitializeKey(temp_k1)
-	s2c.InitializeKey(temp_k2)
+	send.InitializeKey(temp_k1)
+	recv.InitializeKey(temp_k2)
 	// initiator->responder, responder->initiator
 	// (c2s, s2c)
-	return c2s, s2c, nil
+	return send, recv, nil
 }
 
 func (hs *HandshakeState) EncryptAndHash(plaintext []byte) []byte {
@@ -283,7 +288,7 @@ func (hs *HandshakeState) DecryptAndHash(ciphertext []byte) ([]byte, error) {
 	} else {
 		plaintext = ciphertext
 	}
-	hs.MixHash(plaintext)
+	hs.MixHash(ciphertext)
 	return plaintext, err
 }
 func (hs *HandshakeState) MixHash(data []byte) {
@@ -337,7 +342,8 @@ func (cs *CipherState) DecryptWithAd(ad, ciphertext []byte) ([]byte, error) {
 	if len(cs.k) == 0 {
 		return ciphertext, nil
 	}
-	out, err := cs.gcm.Open(ciphertext[:0], cs.getNonce(), ciphertext, ad)
+	/// FIXME: why cant we reuse ciphertext here?
+	out, err := cs.gcm.Open(make([]byte, 0, len(ciphertext)), cs.getNonce(), ciphertext, ad)
 	if err != nil {
 		cs.n--
 		return nil, err

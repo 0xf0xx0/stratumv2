@@ -1,5 +1,3 @@
-git.0xf0xx0.eth.limo/0xf0xx0/oigiki v1.4.0 h1:OHdER4HBK3AyOzhWOJqszbrvIHJgb49HP2AvwceAhIM=
-git.0xf0xx0.eth.limo/0xf0xx0/oigiki v1.4.0/go.mod h1:0/T+yirG7BckgCWvPxXP6RMnDWulVm7qhbgjcHAX+Xs=
 github.com/btcsuite/btcd/address/v2 v2.0.0 h1:UVu8Hal6Siu4XastFe+JX5JkeBYONbDUIY5E+SVTs6I=
 github.com/btcsuite/btcd/address/v2 v2.0.0/go.mod h1:htJK1AtaeK3bKNfZY63ep2oN8LbrI6qvmPGe1vekb3I=
 github.com/btcsuite/btcd/btcec/v2 v2.5.0 h1:KioMXOWa76b86sTZZOmbzv/ldaQCmB8KFAyn5PbB8E8=

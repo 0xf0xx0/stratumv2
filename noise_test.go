@@ -6,7 +6,6 @@ import (
 	"bytes"
 	crand "crypto/rand"
 	"encoding/hex"
-	"fmt"
 	"net"
 	"sync"
 	"testing"
@@ -213,45 +212,46 @@ func TestHandshake(t *testing.T) {
 	if err != nil {
 		t.Errorf("expected no error, got %v", err)
 	}
-	println(fmt.Sprintf("%+v", cert))
 
 	rpipe, lpipe := net.Pipe()
 	srvPaw := &stratumv2.HandshakeState{}
 	cliPaw := &stratumv2.HandshakeState{}
 	wg := &sync.WaitGroup{}
 
-	var srvc2s, srvs2c, clientc2s, clients2c *stratumv2.CipherState
+	data := []byte("/pogolo/")
+	var srvSend, srvRecv, clientSend, clientRecv *stratumv2.CipherState
 	wg.Go(func() {
 		var err error
-		clientc2s, clients2c, err = cliPaw.PerformHandshakeInitiator(rpipe, [32]byte(authority.PublicKeyBytes()))
+		clientSend, clientRecv, err = cliPaw.PerformHandshakeInitiator(rpipe, [32]byte(authority.PublicKeyBytes()))
 		if err != nil {
 			t.Errorf("expected no error, got %v", err)
+			return
 		}
+		r := make([]byte, stratumv2.PlainTextLenToCipherTextLen(len(data)))
+		rpipe.Read(r)
+		t.Logf("recv: %x (%d bytes)", r, len(r))
+		dec, err := clientRecv.DecryptWithAd([]byte{}, r)
+		if err != nil {
+			t.Errorf("expected no error, got %v", err)
+			return
+		}
+		t.Log(string(dec))
 	})
 	wg.Go(func() {
 		var err error
-		srvc2s, srvs2c, err = srvPaw.PerformHandshakeResponder(lpipe, cert, static)
+		srvSend, srvRecv, err = srvPaw.PerformHandshakeResponder(lpipe, cert, static)
 		if err != nil {
 			t.Errorf("expected no error, got %v", err)
+			return
 		}
+		enc := srvSend.EncryptWithAd([]byte{}, data)
+		t.Logf("sending: %x (%d bytes)", enc, len(enc))
+		lpipe.Write(enc)
 	})
 	wg.Wait()
 
-	// data := []byte("/pogolo/")
-	// enc := srvs2c.EncryptWithAd([]byte{}, data)
-	// t.Log(len(enc))
-	// lpipe.Write(enc)
-
-	// r := make([]byte, stratumv2.PlainTextLenToCipherTextLen(len(data)))
-	// rpipe.Read(r)
-	// t.Log("rlen ", len(r))
-	// dec, err := clients2c.DecryptWithAd([]byte{}, r)
-	// if err != nil {
-	// 	t.Errorf("expected no error, got %v", err)
-	// }
-	// t.Log(string(dec))
-	_ = srvc2s
-	_ = srvs2c
-	_ = clientc2s
-	_ = clients2c
+	_ = srvSend
+	_ = srvRecv
+	_ = clientSend
+	_ = clientRecv
 }
