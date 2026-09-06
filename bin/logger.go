@@ -95,7 +95,8 @@ func main() {
 	_ = recv
 	_ = send
 
-	setupBytes, err := send.EncryptFrame(setupFrame)
+	// conn.Write([]byte("random bullshit go"))
+	setupBytes, err := recv.EncryptFrame(setupFrame)
 	if err != nil {
 		panic(err)
 	}

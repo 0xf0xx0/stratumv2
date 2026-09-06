@@ -12,11 +12,11 @@ const (
 	CertificateFormatVersion = 0 // latest supported handshake certificate format version
 	ProtocolName             = "Noise_NX_Secp256k1+EllSwift_ChaChaPoly_SHA256"
 	// Serialized stratum-v2 body (payload) is split into 65519-byte chunks and encrypted to form 65535-bytes AEAD ciphertexts
-	ChunkSize         = 65519
-	MaxNoiseFrameSize = 65535
-	NoiseHeaderSize   = 22 // size of an encrypted header
-	FrameHeaderSize   = 6  // size of a plaintext header
-	MacLen            = 16
+	MaxPlaintextChunkSize = 65519
+	MaxNoiseFrameSize     = 65535
+	NoiseHeaderSize       = 22 // size of an encrypted header
+	FrameHeaderSize       = 6  // size of a plaintext header
+	MacLen                = 16
 )
 
 const (
