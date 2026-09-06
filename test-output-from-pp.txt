@@ -1,146 +1,29 @@
-● Console
-
-console.log
 server keypair: 77029ece8752b7e3177a3e15dc0c95a38f7f272bd3a6ff6f5677772b14f65483 e3748efb2b947c5af12322de08e9ab0323c46b3302307eb73f44f1411283528331032c5aace7b1586d124d95cd2df8ee6f1472c5bf1a4f2c9caaf034a1a7ec79
-
-at Object.<anonymous> (models/sv2/sv2-noise.spec.ts:261:17)
-
-console.log
 auth keypair: da1183fb4a13b0779201797557df16199f5f7341f83ee30952d1af9334b668bb e49f0b5342de94379898fbe983efd17122b8180fa4916be878e7a1bab33c8b21
-
-at Object.<anonymous> (models/sv2/sv2-noise.spec.ts:262:17)
-
-console.log
 static x: 7fad14e7183636460d720a57862bd021c6c3d2c572d5195803dcb8aef627d2a5
-
-at Object.<anonymous> (models/sv2/sv2-noise.spec.ts:263:17)
-
-console.log
 cert: 40368327680c863b107241762fc4404dbc02dd9b58f0935afa7d375d161f43781e2f99cfe5eb6324cf9fee34d8635ee50283bedd4b677525d911371b0dd38492
-
-at Object.<anonymous> (models/sv2/sv2-noise.spec.ts:273:17)
-
-console.log
 4.5.1.1: ephemeral priv: 751811a408603c54c4a07cd8d24757760d9f86e76192265bf1961452df5923c6
-
-at Sv2NoiseInitiator.generateAct1 (models/sv2/sv2-noise.ts:540:13)
-
-console.log
 4.5.1.1: ephemeral pub: 498e756a36e7a65c7521ed4343f14960dd784d7eb24cd87a4f7fad5c226cc33c9466c7d8492c836cc1912c47ee823ee3362bb24b5330e80b3505f9c52cc1e6d0
-
-at Sv2NoiseInitiator.generateAct1 (models/sv2/sv2-noise.ts:541:13)
-
-console.log
 [NOISE] Protocol name: "Noise_NX_Secp256k1+EllSwift_ChaChaPoly_SHA256" (45 bytes)
-
-at Sv2NoiseSession.processAct1 (models/sv2/sv2-noise.ts:376:15)
-
-console.log
 [NOISE] Cipher: chacha20-poly1305
-
-at Sv2NoiseSession.processAct1 (models/sv2/sv2-noise.ts:377:15)
-
-console.log
 [NOISE] Init ck=2eb47881208e9eee1f669f67c66ee70ea9ea88090d503fe830dc4bc83e29bf10
-
-at Sv2NoiseSession.processAct1 (models/sv2/sv2-noise.ts:378:15)
-
-console.log
 [NOISE] Init h=922fa32e4f487c0d59caa3bed7899ce3d98db7e13dbd3b7cf2d23dd433dc6104
-
-at Sv2NoiseSession.processAct1 (models/sv2/sv2-noise.ts:379:15)
-
-console.log
 [NOISE] After MixHash(re): h=e689517d160459919a67e280a98d2204fbbccce1538104da5019f86e29008245
-
-at Sv2NoiseSession.processAct1 (models/sv2/sv2-noise.ts:386:24)
-
-console.log
 [NOISE] After DecryptAndHash(empty): h=39a096a0625766430c0671c47e2268d2a2fddb3fa21c1f97afa04a58db38e95b
-
-at Sv2NoiseSession.processAct1 (models/sv2/sv2-noise.ts:389:24)
-
-console.log
 [NOISE] Server eph priv: 8550d0f282bef7572b3786fa204b032d8ca647d5c7b4e997a47f7bf6d67dcd2f
-
-at Sv2NoiseSession.processAct1 (models/sv2/sv2-noise.ts:395:24)
-
-console.log
 [NOISE] Server eph pub: 88f03280cdf299d2434c970c3027ec722ff92c8c42de8d1ffe1100f6dd23bb91e8271ca1b711ea2b2904c108e508a1bff37e6d17e7c850d9ff69856d0f8c32f9
-
-at Sv2NoiseSession.processAct1 (models/sv2/sv2-noise.ts:396:24)
-
-console.log
 [NOISE] After MixHash(se): h=83c35361e5785604bb296d6cea8a53158c3e29c0d3787399e744289f827a93da
-
-at Sv2NoiseSession.processAct1 (models/sv2/sv2-noise.ts:399:24)
-
-console.log
 [NOISE] ee DH shared secret: af1300e533a825dcffd56fa04b736ac8b6740d168a66e1f4cc6d30b33398f013
-
-at Sv2NoiseSession.processAct1 (models/sv2/sv2-noise.ts:407:24)
-
-console.log
 [NOISE] After MixKey(ee): ck=070b7b15fc6ad43dbfe7b83418c40294111cccb0c6a59ec61b0fe28dda902151
-
-at Sv2NoiseSession.processAct1 (models/sv2/sv2-noise.ts:410:24)
-
-console.log
 [NOISE] h (AD for encrypt static): 83c35361e5785604bb296d6cea8a53158c3e29c0d3787399e744289f827a93da
-
-at Sv2NoiseSession.processAct1 (models/sv2/sv2-noise.ts:414:15)
-
-console.log
 [NOISE] Static pub (plaintext): e3748efb2b947c5af12322de08e9ab0323c46b3302307eb73f44f1411283528331032c5aace7b1586d124d95cd2df8ee6f1472c5bf1a4f2c9caaf034a1a7ec79
-
-at Sv2NoiseSession.processAct1 (models/sv2/sv2-noise.ts:415:15)
-
-console.log
 [NOISE] Encrypted static (80 bytes): d786a5d3d7fd12a70d251c9e7964252e3f10703fa044e03c97676c4857d5ca6bb0f97eed7f6e08482a1ddb905304b851d7f9636942f53b733e8c6c556673f6d7c2c6e61d8264fab297495e832c0dfdf3
-
-at Sv2NoiseSession.processAct1 (models/sv2/sv2-noise.ts:419:24)
-
-console.log
 [NOISE] es DH shared secret: 48a9b0e59b82aefd6a62289aef3c4faeb70cf9c04c82243cd1097f0c24ae8a43
-
-at Sv2NoiseSession.processAct1 (models/sv2/sv2-noise.ts:427:24)
-
-console.log
 [NOISE] After MixKey(es): ck=07b603f4edfd177ee87e6af4ee0d845c5a3d57b53a9fde232fd4116de6379d4f
-
-at Sv2NoiseSession.processAct1 (models/sv2/sv2-noise.ts:430:24)
-
-console.log
 [NOISE] h (AD for encrypt cert): ed4ce9a3037042fa2083ca411cc6d516247105d4a2a916ef5a1302b24597d880
-
-at Sv2NoiseSession.processAct1 (models/sv2/sv2-noise.ts:433:24)
-
-console.log
 [NOISE] Cert payload (74 bytes): 00007d429c6a0da29d6a40368327680c863b107241762fc4404dbc02dd9b58f0935afa7d375d161f43781e2f99cfe5eb6324cf9fee34d8635ee50283bedd4b677525d911371b0dd38492
-
-at Sv2NoiseSession.processAct1 (models/sv2/sv2-noise.ts:434:24)
-
-console.log
 [NOISE] Encrypted cert (90 bytes)
-
-at Sv2NoiseSession.processAct1 (models/sv2/sv2-noise.ts:437:24)
-
-console.log
 [NOISE] Act 2 total: 234 bytes
-
-at Sv2NoiseSession.processAct1 (models/sv2/sv2-noise.ts:445:24)
-
-console.log
 4.5.2.2: remote ephemeral pub: 88f03280cdf299d2434c970c3027ec722ff92c8c42de8d1ffe1100f6dd23bb91e8271ca1b711ea2b2904c108e508a1bff37e6d17e7c850d9ff69856d0f8c32f9
-
-at Sv2NoiseInitiator.processAct2 (models/sv2/sv2-noise.ts:561:13)
-
-console.log
 staticEnc: d786a5d3d7fd12a70d251c9e7964252e3f10703fa044e03c97676c4857d5ca6bb0f97eed7f6e08482a1ddb905304b851d7f9636942f53b733e8c6c556673f6d7c2c6e61d8264fab297495e832c0dfdf3
-
-at Sv2NoiseInitiator.processAct2 (models/sv2/sv2-noise.ts:562:13)
-
-console.log
 certEnc: 50d1581b0a5efd461ed1eccd2202b33f1615da3190a0bc41681e3ed157364876bbfcea8f2fb347cd413e0615f968fb0a2e7b22d3a3a967fe114c117cb3f60f09daf5701d9c10117bb8c43d2c65d331e9959a458b513af2f184a3
-
-at Sv2NoiseInitiator.processAct2 (models/sv2/sv2-noise.ts:563:13)

@@ -11,7 +11,22 @@ import (
 type Protocol uint8
 type MessageType uint8
 type Error = string
-type Flag uint32 // MAYBE: add helpers for setting/clearing bits?
+type Flag uint32          // MAYBE: add helpers for setting/clearing bits?
+type Pubkey = [32]byte    // X coordinate of Secp256k1 public key (see BIP 340)
+type Signature = [64]byte // Schnorr signature on Secp256k1 (see BIP 340)
+
+// During the handshake, initiator receives [SIGNATURE_NOISE_MESSAGE] and server's static public key.
+// These parts make up a `Certificate` signed by an authority whose public key is generally known (for example from pool's website).
+// Initiator confirms the identity of the server by verifying the signature in the certificate.
+type Certificate struct {
+	Version         uint16 // Version of the certificate format
+	ValidFrom       uint32 // Validity start time (unix timestamp)
+	NotValidAfter   uint32 // Signature is invalid after this point in time (unix timestamp)
+	ServerPubKey    Pubkey
+	AuthorityPubKey Pubkey
+	Signature       Signature
+}
+
 // U24 is the set of all unsigned 24-bit integers.
 // Range: 0 through 16777215.
 // The top byte gets dropped during encoding.

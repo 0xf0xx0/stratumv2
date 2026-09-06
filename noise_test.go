@@ -6,6 +6,7 @@ import (
 	"bytes"
 	crand "crypto/rand"
 	"encoding/hex"
+	"fmt"
 	"net"
 	"sync"
 	"testing"
@@ -40,34 +41,34 @@ func TestBase58Check(t *testing.T) {
 	}
 }
 
-// func TestCerts(t *testing.T) {
-// 	authority := stratumv2.GenerateKeypair()
-// 	staticPub := make([]byte, 32)
-// 	crand.Read(staticPub)
-// 	now := uint32(time.Now().Unix())
-// 	cert, err := stratumv2.NewAuthoritySignature(authority.Private, staticPub, 0, now+3600)
-// 	if err != nil {
-// 		t.Errorf("expected no error, got %v", err)
-// 	}
+func TestCerts(t *testing.T) {
+	authority := stratumv2.GenerateKeypair()
+	staticPub := make([]byte, 32)
+	crand.Read(staticPub)
+	now := uint32(time.Now().Unix())
+	cert, err := stratumv2.NewAuthoritySignature(authority.Private, staticPub, 0, now+3600)
+	if err != nil {
+		t.Errorf("expected no error, got %v", err)
+	}
 
-// 	ok, err := stratumv2.VerifyServerCertificate(cert, [32]byte(authority.PublicKeyBytes()), staticPub)
-// 	if err != nil {
-// 		t.Errorf("expected no error, got %v", err)
-// 	}
-// 	if !ok {
-// 		t.Errorf("failed to verify server certificate")
-// 	}
+	ok, err := stratumv2.VerifyServerCertificate(cert, [32]byte(authority.PublicKeyBytes()), staticPub)
+	if err != nil {
+		t.Errorf("expected no error, got %v", err)
+	}
+	if !ok {
+		t.Errorf("failed to verify server certificate")
+	}
 
-// 	/// verify failure
-// 	badKey := stratumv2.GenerateKeypair()
-// 	ok, err = stratumv2.VerifyServerCertificate(cert, [32]byte(badKey.PublicKeyBytes()), staticPub)
-// 	if err != nil {
-// 		t.Errorf("expected no error, got %v", err)
-// 	}
-// 	if ok {
-// 		t.Errorf("cert verified when it should have failed")
-// 	}
-// }
+	/// verify failure
+	badKey := stratumv2.GenerateKeypair()
+	ok, err = stratumv2.VerifyServerCertificate(cert, [32]byte(badKey.PublicKeyBytes()), staticPub)
+	if err != nil {
+		t.Errorf("expected no error, got %v", err)
+	}
+	if ok {
+		t.Errorf("cert verified when it should have failed")
+	}
+}
 
 func TestHMAC(t *testing.T) {
 	key, _ := hex.DecodeString("0b0b0b0b0b0b0b0b0b0b0b0b0b0b0b0b0b0b0b0b")
@@ -205,12 +206,16 @@ func TestCipherState(t *testing.T) {
 }
 
 func TestHandshake(t *testing.T) {
-	// authority := stratumv2.GenerateKeypair()
-	// static := stratumv2.GenerateKeypair()
-	authority := stratumv2.GenerateKeypairFromBytes([32]byte(hexDec("da1183fb4a13b0779201797557df16199f5f7341f83ee30952d1af9334b668bb")))
-	static := stratumv2.GenerateKeypairFromBytes([32]byte(hexDec("77029ece8752b7e3177a3e15dc0c95a38f7f272bd3a6ff6f5677772b14f65483")))
-	rpipe, lpipe := net.Pipe()
+	authority := stratumv2.GenerateKeypair()
+	static := stratumv2.GenerateKeypair()
 
+	cert, err := stratumv2.NewAuthoritySignature(authority.Private, static.PublicKeyBytes(), 20, uint32(time.Now().Unix())+3600)
+	if err != nil {
+		t.Errorf("expected no error, got %v", err)
+	}
+	println(fmt.Sprintf("%+v", cert))
+
+	rpipe, lpipe := net.Pipe()
 	srvPaw := &stratumv2.HandshakeState{}
 	cliPaw := &stratumv2.HandshakeState{}
 	wg := &sync.WaitGroup{}
@@ -225,10 +230,6 @@ func TestHandshake(t *testing.T) {
 	})
 	wg.Go(func() {
 		var err error
-		cert, err := stratumv2.NewAuthoritySignature(authority.Private, static.PublicKeyBytes(), 20, uint32(time.Now().Unix())+3600)
-		if err != nil {
-			t.Errorf("expected no error, got %v", err)
-		}
 		srvc2s, srvs2c, err = srvPaw.PerformHandshakeResponder(lpipe, cert, static)
 		if err != nil {
 			t.Errorf("expected no error, got %v", err)

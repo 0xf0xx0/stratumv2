@@ -13,6 +13,7 @@ require (
 )
 
 require (
+	git.0xf0xx0.eth.limo/0xf0xx0/oigiki v1.4.0 // indirect
 	github.com/decred/dcrd/crypto/blake256 v1.1.0 // indirect
 	github.com/decred/dcrd/dcrec/secp256k1/v4 v4.4.0 // indirect
 	github.com/klauspost/cpuid/v2 v2.2.3 // indirect
