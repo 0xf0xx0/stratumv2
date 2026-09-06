@@ -37,7 +37,7 @@ func (f *Frame) Encode() ([]byte, error) {
 	if int(f.MessageLength) != len(f.Payload) {
 		return nil, errors.New("Frame.Encode: MessageLength != len(Payload)")
 	}
-	out := NewBinaryBuilder().Grow(int(f.MessageLength))
+	out := NewBinaryBuilder().Grow(FrameHeaderSize + int(f.MessageLength))
 	out.AddU16(f.ExtensionType).
 		AddU8(uint8(f.MessageType)).
 		AddU24(f.MessageLength).
