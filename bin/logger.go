@@ -16,8 +16,8 @@ import (
 )
 
 var (
-	poolhost = "62.2.188.226" /// blitzpool.yourdevice.ch
-	poolport = 3333
+	poolhost = "38.51.144.232" /// public-pool.io
+	poolport = 23330
 	reqid    = uint32(0)
 	addr     = func() *address.AddressTaproot {
 		b, _ := hex.DecodeString("8033d13ee81500afe03a9f48ed142b15724816dd9247c9cf55ae447a5b867449")
@@ -29,7 +29,7 @@ var (
 		s.SetString("00000000FFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFF")
 		return s
 	}()
-	authkey = "9bCoFxTszKCuffyywH5uS5o6WcU4vsjTH2axxc7wE86y2HhvULU"
+	authkey = "9c4zpyJ2ndm4e8sP2uNc1VNCGxYjqaxWS6wUCjk8zFj6njFquH6"
 )
 
 func main() {

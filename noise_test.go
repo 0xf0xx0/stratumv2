@@ -205,6 +205,27 @@ func TestCipherState(t *testing.T) {
 }
 
 func TestHandshake(t *testing.T) {
+	setupmsg := stratumv2.SetupConnection{
+		Protocol:              stratumv2.MiningProtocol,
+		MinVersion:            stratumv2.ProtocolVersion,
+		MaxVersion:            stratumv2.ProtocolVersion,
+		Flags:                 stratumv2.RequiresExtendedChannelsFlag,
+		EndpointPort:          1222,
+		EndpointHost:          "hosty",
+		DeviceVendor:          "0xf0xx0",
+		DeviceHardwareVersion: "maybe",
+		DeviceFirmware:        "go-sv2-test",
+		DeviceID:              "bluuchuu",
+	}
+	setupPayload, err := setupmsg.Encode()
+	if err != nil {
+		panic(err)
+	}
+	setupFrame := stratumv2.Frame{
+		MessageType:   stratumv2.MessageSetupConnection,
+		MessageLength: stratumv2.U24(len(setupPayload)),
+		Payload:       setupPayload,
+	}
 	authority := stratumv2.GenerateKeypair()
 	static := stratumv2.GenerateKeypair()
 
@@ -238,32 +259,37 @@ func TestHandshake(t *testing.T) {
 	})
 	wg.Wait()
 
-	t.Logf("srv key: %x | %x", srvSend.GetKey(), srvSend.GetNonce())
-	t.Logf("cli key: %x | %x", clientSend.GetKey(), clientRecv.GetNonce())
-	enc := srvSend.EncryptWithAd([]byte{}, data)
-	if len(enc) != len(data)+stratumv2.MacLen {
-		t.Errorf("encrypted text len isnt expected")
-		return
+	t.Logf("srv key+nonce: %x | %x", srvSend.GetKey(), srvSend.GetNonce())
+	t.Logf("cli key+nonce: %x | %x", clientSend.GetKey(), clientRecv.GetNonce())
+	for range 5 {
+		enc := srvSend.EncryptWithAd([]byte{}, data)
+		if len(enc) != len(data)+stratumv2.MacLen {
+			t.Errorf("encrypted text len isnt expected")
+			return
+		}
+
+		t.Logf("sending: %x (%d bytes)", enc, len(enc))
+		dec, err := clientSend.DecryptWithAd([]byte{}, enc)
+		if err != nil {
+			t.Errorf("expected no error, got %v", err)
+			return
+		}
+		if string(dec) != string(data) {
+			t.Errorf("mismatch inb decrypted data: expected %q, got %q", data, dec)
+		}
 	}
 
-	t.Logf("sending: %x (%d bytes)", enc, len(enc))
-	dec, err := clientSend.DecryptWithAd([]byte{}, enc)
+	enc, err := clientRecv.EncryptFrame(setupFrame)
 	if err != nil {
 		t.Errorf("expected no error, got %v", err)
 		return
 	}
-	t.Log(string(dec))
-
-	enc = clientRecv.EncryptWithAd([]byte{}, data)
-	if len(enc) != len(data)+stratumv2.MacLen {
-		t.Errorf("encrypted text len isnt expected")
-		return
-	}
 	t.Logf("sending: %x (%d bytes)", enc, len(enc))
-	dec, err = srvRecv.DecryptWithAd([]byte{}, enc)
+	t.Logf("%x %x", enc[:stratumv2.NoiseHeaderSize], enc[stratumv2.NoiseHeaderSize:])
+	decFrame, err := srvRecv.DecryptFrame(bytes.NewBuffer(enc))
 	if err != nil {
 		t.Errorf("expected no error, got %v", err)
 		return
 	}
-	t.Log(string(dec))
+	t.Logf("%+v", decFrame)
 }
