@@ -3,6 +3,7 @@ package main
 import (
 	"encoding/hex"
 	"fmt"
+	"io"
 	"net"
 	"net/netip"
 	"os"
@@ -36,16 +37,16 @@ func main() {
 	sigs := make(chan os.Signal, 1)
 	signal.Notify(sigs, syscall.SIGINT, syscall.SIGTERM)
 	setupmsg := stratumv2.SetupConnection{
-		Protocol:              stratumv2.MiningProtocol,
-		MinVersion:            stratumv2.ProtocolVersion,
-		MaxVersion:            stratumv2.ProtocolVersion,
-		Flags:                 stratumv2.RequiresExtendedChannelsFlag,
-		EndpointPort:          uint16(poolport),
-		EndpointHost:          poolhost,
-		DeviceVendor:          "0xf0xx0",
-		DeviceHardwareVersion: "maybe",
-		DeviceFirmware:        "go-sv2-test",
-		DeviceID:              "bluuchuu",
+		Protocol:     stratumv2.MiningProtocol,
+		MinVersion:   stratumv2.ProtocolVersion,
+		MaxVersion:   stratumv2.ProtocolVersion,
+		Flags:        stratumv2.RequiresExtendedChannelsFlag,
+		EndpointPort: uint16(poolport),
+		EndpointHost: "public-pool.io",
+		DeviceVendor: "0xf0xx0",
+		// DeviceHardwareVersion: "maybe",
+		// DeviceFirmware:        "go-sv2-test",
+		// DeviceID:              "bluuchuu",
 	}
 	openchanmsg := stratumv2.OpenExtendedMiningChannel{
 		OpenStandardMiningChannel: stratumv2.OpenStandardMiningChannel{
@@ -91,31 +92,45 @@ func main() {
 	if err != nil {
 		panic(err)
 	}
+	_ = recv
 	_ = send
-
-	go func() {
-		for {
-			frame, err := recv.DecryptFrame(conn)
-			if err != nil {
-				panic(err)
-			}
-			bytes, _ := frame.Encode()
-			fmt.Printf("RX: %x\n", bytes)
-		}
-	}()
 
 	setupBytes, err := send.EncryptFrame(setupFrame)
 	if err != nil {
 		panic(err)
 	}
-	fmt.Printf("%+v", setupmsg)
-	fmt.Printf("%+v", setupFrame)
+	// fmt.Printf("%+v\n", setupmsg)
+	// fmt.Printf("%+v\n", setupFrame)
 	fmt.Printf("TX: %x\n", setupBytes)
+	// go func() {
+	// 	b := bytes.Buffer{}
+	// 	b.Grow(22)
+	// 	_, err := b.ReadFrom(conn)
+	// 	if err != nil {
+	// 		panic(err)
+	// 	}
+	// 	fmt.Printf("RX: %x", b.Bytes())
+	// }()
 	conn.Write(setupBytes)
+	// go func() {
+	// 	for {
+	// 		frame, err := recv.DecryptFrame(conn)
+	// 		if err != nil {
+	// 			panic(err)
+	// 		}
+	// 		bytes, _ := frame.Encode()
+	// 		fmt.Printf("RX: %x\n", bytes)
+	// 	}
+	// }()
 
-	// openchanBytes, err := recv.EncryptFrame(openchanFrame)
+	b, err := io.ReadAll(conn)
+	if err != nil {
+		panic(err)
+	}
+	fmt.Printf("RX: %x\n", b)
+	// openchanBytes, err := send.EncryptFrame(openchanFrame)
 	// if err != nil {
-	// 	panic(err)
+	// panic(err)
 	// }
 	// fmt.Printf("TX: %x\n", openchanBytes)
 	// conn.Write(openchanBytes)
