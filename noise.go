@@ -347,7 +347,7 @@ func (cs *CipherState) EncryptWithAd(ad, plaintext []byte) []byte {
 	if len(cs.k) == 0 {
 		return plaintext
 	}
-	return cs.gcm.Seal(plaintext[:0], cs.getNonce(), plaintext, ad)
+	return cs.gcm.Seal(make([]byte, 0, PlainTextLenToCipherTextLen(len(plaintext))), cs.getNonce(), plaintext, ad)
 }
 func (cs *CipherState) DecryptWithAd(ad, ciphertext []byte) ([]byte, error) {
 	if len(cs.k) == 0 {
@@ -388,6 +388,7 @@ func (cs *CipherState) DecryptFrame(r io.Reader) (Frame, error) {
 	/// decrypt the header
 	header := make([]byte, NoiseHeaderSize)
 	read, err := r.Read(header)
+
 	if err != nil {
 		return Frame{}, fmt.Errorf("error while reading header: %s", err)
 	}

@@ -19,6 +19,7 @@ import (
 var (
 	poolhost = "38.51.144.232" /// public-pool.io
 	poolport = 23330
+	authkey  = "9c4zpyJ2ndm4e8sP2uNc1VNCGxYjqaxWS6wUCjk8zFj6njFquH6"
 	reqid    = uint32(0)
 	addr     = func() *address.AddressTaproot {
 		b, _ := hex.DecodeString("8033d13ee81500afe03a9f48ed142b15724816dd9247c9cf55ae447a5b867449")
@@ -30,7 +31,6 @@ var (
 		s.SetString("00000000FFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFF")
 		return s
 	}()
-	authkey = "9c4zpyJ2ndm4e8sP2uNc1VNCGxYjqaxWS6wUCjk8zFj6njFquH6"
 )
 
 func main() {
@@ -42,21 +42,21 @@ func main() {
 		MaxVersion:   stratumv2.ProtocolVersion,
 		Flags:        stratumv2.RequiresExtendedChannelsFlag,
 		EndpointPort: uint16(poolport),
-		EndpointHost: "public-pool.io",
+		EndpointHost: poolhost,
 		DeviceVendor: "0xf0xx0",
 		// DeviceHardwareVersion: "maybe",
 		// DeviceFirmware:        "go-sv2-test",
 		// DeviceID:              "bluuchuu",
 	}
-	openchanmsg := stratumv2.OpenExtendedMiningChannel{
-		OpenStandardMiningChannel: stratumv2.OpenStandardMiningChannel{
-			RequestID:       newReqID(),
-			UserIdentity:    addr.EncodeAddress(),
-			NominalHashRate: 1e12,
-			MaxTarget:       maxtarget,
-		},
-		MinExtranonceSize: 1,
-	}
+	// openchanmsg := stratumv2.OpenExtendedMiningChannel{
+	// 	OpenStandardMiningChannel: stratumv2.OpenStandardMiningChannel{
+	// 		RequestID:       newReqID(),
+	// 		UserIdentity:    addr.EncodeAddress(),
+	// 		NominalHashRate: 1e12,
+	// 		MaxTarget:       maxtarget,
+	// 	},
+	// 	MinExtranonceSize: 1,
+	// }
 	setupPayload, err := setupmsg.Encode()
 	if err != nil {
 		panic(err)
@@ -66,16 +66,16 @@ func main() {
 		MessageLength: stratumv2.U24(len(setupPayload)),
 		Payload:       setupPayload,
 	}
-	openchanPayload, err := openchanmsg.Encode()
-	if err != nil {
-		panic(err)
-	}
-	openchanFrame := stratumv2.Frame{
-		MessageType:   stratumv2.MessageOpenExtendedMiningChannel,
-		MessageLength: stratumv2.U24(len(openchanPayload)),
-		Payload:       openchanPayload,
-	}
-	_ = openchanFrame
+	// openchanPayload, err := openchanmsg.Encode()
+	// if err != nil {
+	// 	panic(err)
+	// }
+	// openchanFrame := stratumv2.Frame{
+	// 	MessageType:   stratumv2.MessageOpenExtendedMiningChannel,
+	// 	MessageLength: stratumv2.U24(len(openchanPayload)),
+	// 	Payload:       openchanPayload,
+	// }
+	// _ = openchanFrame
 
 	cliPaw := &stratumv2.HandshakeState{}
 	authorityPubkey, err := stratumv2.DeserializeAuthorityKey(authkey)
@@ -96,22 +96,20 @@ func main() {
 	_ = send
 
 	// conn.Write([]byte("random bullshit go"))
-	setupBytes, err := recv.EncryptFrame(setupFrame)
+	setupBytes, err := send.EncryptFrame(setupFrame)
 	if err != nil {
 		panic(err)
 	}
 	// fmt.Printf("%+v\n", setupmsg)
 	// fmt.Printf("%+v\n", setupFrame)
 	fmt.Printf("TX: %x\n", setupBytes)
-	// go func() {
-	// 	b := bytes.Buffer{}
-	// 	b.Grow(22)
-	// 	_, err := b.ReadFrom(conn)
-	// 	if err != nil {
-	// 		panic(err)
-	// 	}
-	// 	fmt.Printf("RX: %x", b.Bytes())
-	// }()
+	go func() {
+		b, err := io.ReadAll(conn)
+		if err != nil {
+			panic(err)
+		}
+		fmt.Printf("RX: %x", b)
+	}()
 	conn.Write(setupBytes)
 	// go func() {
 	// 	for {
@@ -124,11 +122,6 @@ func main() {
 	// 	}
 	// }()
 
-	b, err := io.ReadAll(conn)
-	if err != nil {
-		panic(err)
-	}
-	fmt.Printf("RX: %x\n", b)
 	// openchanBytes, err := send.EncryptFrame(openchanFrame)
 	// if err != nil {
 	// panic(err)
