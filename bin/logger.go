@@ -3,7 +3,6 @@ package main
 import (
 	"encoding/hex"
 	"fmt"
-	"io"
 	"net"
 	"net/netip"
 	"os"
@@ -17,9 +16,9 @@ import (
 )
 
 var (
-	poolhost = "38.51.144.232" /// public-pool.io
-	poolport = 23330
-	authkey  = "9c4zpyJ2ndm4e8sP2uNc1VNCGxYjqaxWS6wUCjk8zFj6njFquH6"
+	poolhost = "91.98.76.244" ///warppool
+	poolport = 3336
+	authkey  = "9ankJhx4JpKeJd7xHzPVM98kU1WppT45Pbp3LfeKVdyt5bYgBY8"
 	reqid    = uint32(0)
 	addr     = func() *address.AddressTaproot {
 		b, _ := hex.DecodeString("8033d13ee81500afe03a9f48ed142b15724816dd9247c9cf55ae447a5b867449")
@@ -80,7 +79,7 @@ func main() {
 	cliPaw := &stratumv2.HandshakeState{}
 	authorityPubkey, err := stratumv2.DeserializeAuthorityKey(authkey)
 	if err != nil {
-		panic(err)
+	panic(err)
 	}
 
 	conn, err := net.DialTCP("tcp", nil, net.TCPAddrFromAddrPort(netip.MustParseAddrPort(poolhost+":"+strconv.Itoa(poolport))))
@@ -88,7 +87,7 @@ func main() {
 		panic(err)
 	}
 
-	recv, send, err := cliPaw.PerformHandshakeInitiator(conn, [32]byte(authorityPubkey))
+	send, recv, err := cliPaw.PerformHandshakeInitiator(conn, [32]byte(authorityPubkey))
 	if err != nil {
 		panic(err)
 	}
@@ -103,24 +102,24 @@ func main() {
 	// fmt.Printf("%+v\n", setupmsg)
 	// fmt.Printf("%+v\n", setupFrame)
 	fmt.Printf("TX: %x\n", setupBytes)
-	go func() {
+	/*go func() {
 		b, err := io.ReadAll(conn)
 		if err != nil {
 			panic(err)
 		}
 		fmt.Printf("RX: %x", b)
-	}()
+	}()*/
 	conn.Write(setupBytes)
-	// go func() {
-	// 	for {
-	// 		frame, err := recv.DecryptFrame(conn)
-	// 		if err != nil {
-	// 			panic(err)
-	// 		}
-	// 		bytes, _ := frame.Encode()
-	// 		fmt.Printf("RX: %x\n", bytes)
-	// 	}
-	// }()
+	go func() {
+	 	for {
+ 		frame, err := recv.DecryptFrame(conn)
+		if err != nil {
+	 			panic(err)
+	 		}
+	 		bytes, _ := frame.Encode()
+	 		fmt.Printf("RX: %x\n", bytes)
+	 	}
+	}()
 
 	// openchanBytes, err := send.EncryptFrame(openchanFrame)
 	// if err != nil {

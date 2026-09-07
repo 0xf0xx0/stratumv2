@@ -42,6 +42,7 @@ func (f *Frame) Encode() ([]byte, error) {
 		AddU8(uint8(f.MessageType)).
 		AddU24(f.MessageLength).
 		AddBytes(f.Payload)
+	/// FIXME: properly encode tlv len
 	if f.TLVs != nil {
 		for _, tlv := range f.TLVs {
 			enc, err := tlv.Encode()

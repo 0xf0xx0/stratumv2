@@ -387,7 +387,7 @@ func (cs *CipherState) DecryptFrame(r io.Reader) (Frame, error) {
 	frame := Frame{}
 	/// decrypt the header
 	header := make([]byte, NoiseHeaderSize)
-	read, err := r.Read(header)
+	read, err := io.ReadFull(r, header)
 
 	if err != nil {
 		return Frame{}, fmt.Errorf("error while reading header: %s", err)
