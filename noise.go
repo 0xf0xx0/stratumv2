@@ -368,18 +368,7 @@ func (cs *CipherState) EncryptFrame(frame Frame) ([]byte, error) {
 		return nil, err
 	}
 	header := cs.EncryptWithAd([]byte{}, encoded[:FrameHeaderSize])
-
-	/// ?
-	offset := 0
-	payload := encoded[FrameHeaderSize:]
-	out := make([]byte, 0, len(payload))
-	for offset < len(payload) {
-		rem := len(payload) - offset
-		chunkLen := min(rem, MaxPlaintextChunkSize)
-		chunk := payload[offset : offset+chunkLen]
-		out = append(out, cs.EncryptWithAd([]byte{}, chunk)...)
-		offset += chunkLen
-	}
+	out := cs.EncryptWithAd([]byte{}, encoded[FrameHeaderSize:])
 
 	return append(header, out...), nil
 }
