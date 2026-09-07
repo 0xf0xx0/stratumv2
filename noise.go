@@ -395,16 +395,19 @@ func (cs *CipherState) DecryptFrame(r io.Reader) (Frame, error) {
 	if read < NoiseHeaderSize {
 		return Frame{}, errors.New("ciphertext too short")
 	}
+
 	decrypted, err := cs.DecryptWithAd([]byte{}, header)
 	if err != nil {
 		return Frame{}, fmt.Errorf("error while decrypting header: %s", err)
 	}
+
 	frame.DecodeHeader(decrypted)
 
 	/// now decrypt payload
 	payloadLen := PlainTextLenToCipherTextLen(int(frame.MessageLength))
 	payload := make([]byte, payloadLen)
-	read, err = r.Read(payload)
+	read, err = io.ReadFull(r, payload)
+
 	if err != nil {
 		return Frame{}, fmt.Errorf("error while reading payload: %s", err)
 	}

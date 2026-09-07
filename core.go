@@ -108,7 +108,7 @@ func (f *Frame) DecodeFromReader(r io.Reader) error {
 	var err error
 
 	header := make([]byte, FrameHeaderSize)
-	if _, err = r.Read(header); err != nil {
+	if _, err = io.ReadFull(r, header); err != nil {
 		return err
 	}
 
@@ -117,7 +117,7 @@ func (f *Frame) DecodeFromReader(r io.Reader) error {
 	}
 
 	f.Payload = make([]byte, f.MessageLength)
-	if _, err = r.Read(f.Payload); err != nil {
+	if _, err = io.ReadFull(r, f.Payload); err != nil {
 		return err
 	}
 	return nil
