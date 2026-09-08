@@ -190,8 +190,8 @@ func (hs *HandshakeState) PerformHandshakeInitiator(rw io.ReadWriter, authorityP
 	temp_k1, temp_k2 := HKDF(hs.ck[:], []byte{})
 	// println(fmt.Sprintf("[Initiator] k1=%x, k2=%x", temp_k1, temp_k2))
 
-	send.InitializeKey(temp_k1)
-	recv.InitializeKey(temp_k2)
+	send.InitializeKey([32]byte(temp_k1))
+	recv.InitializeKey([32]byte(temp_k2))
 	return send, recv, nil
 }
 func (hs *HandshakeState) PerformHandshakeResponder(rw io.ReadWriter, cert *SIGNATURE_NOISE_MESSAGE, staticKeys *Keypair) (send, recv *CipherState, err error) {
@@ -261,8 +261,8 @@ func (hs *HandshakeState) PerformHandshakeResponder(rw io.ReadWriter, cert *SIGN
 	temp_k1, temp_k2 := HKDF(hs.ck[:], []byte{})
 	// println(fmt.Sprintf("[Responder] k1=%x, k2=%x", temp_k1, temp_k2))
 
-	send.InitializeKey(temp_k1)
-	recv.InitializeKey(temp_k2)
+	send.InitializeKey([32]byte(temp_k1))
+	recv.InitializeKey([32]byte(temp_k2))
 	// initiator->responder, responder->initiator
 	// (c2s, s2c)
 	return send, recv, nil
@@ -271,7 +271,8 @@ func (hs *HandshakeState) PerformHandshakeResponder(rw io.ReadWriter, cert *SIGN
 func (hs *HandshakeState) EncryptAndHash(plaintext []byte) []byte {
 	var ciphertext []byte
 	if len(hs.cs.k) != 0 {
-		ciphertext = hs.cs.EncryptWithAd(hs.h[:], plaintext)
+		/// NOTE: at this early stage nonce wont be anywhere close to the limit
+		ciphertext, _ = hs.cs.EncryptWithAd(hs.h[:], plaintext)
 	} else {
 		ciphertext = plaintext
 	}
@@ -292,23 +293,32 @@ func (hs *HandshakeState) DecryptAndHash(ciphertext []byte) ([]byte, error) {
 	hs.MixHash(ciphertext)
 	return plaintext, err
 }
+
+// MixHash is exposed for convenience.
+// You usually want to use [HandshakeState.PerformHandshakeInitiator]/[HandshakeState.PerformHandshakeResponder].
 func (hs *HandshakeState) MixHash(data []byte) {
 	hs.h = sha256.Sum256(append(hs.h[:], data...))
 }
+
+// MixKey is exposed for convenience.
+// You usually want to use [HandshakeState.PerformHandshakeInitiator]/[HandshakeState.PerformHandshakeResponder].
 func (hs *HandshakeState) MixKey(inputKeyMaterial []byte) {
 	ck, temp := HKDF(hs.ck[:], inputKeyMaterial)
 	hs.ck = [32]byte(ck)
-	hs.cs.InitializeKey(temp)
+	hs.cs.InitializeKey([32]byte(temp))
 }
-func (hs *HandshakeState) ECDH(k *Keypair, rk [64]byte, initiator bool) []byte {
-	hash, err := ellswift.V2Ecdh(k.Private, rk, [64]byte(k.SerializeEllswift()), initiator)
+
+// ECDH is exposed for convenience.
+// You usually want to use [HandshakeState.PerformHandshakeInitiator]/[HandshakeState.PerformHandshakeResponder].
+func (hs *HandshakeState) ECDH(k *Keypair, remoteKey EllswiftPubkey, initiator bool) []byte {
+	hash, err := ellswift.V2Ecdh(k.Private, remoteKey, [64]byte(k.SerializeEllswift()), initiator)
 	if err != nil {
 		panic(err)
 	}
 	return hash[:]
 }
 
-// Object that encapsulates encryption and decryption operations with underlying AEAD mode
+// CipherState encapsulates encryption and decryption operations with underlying AEAD mode
 // cipher functions using 32-byte encryption key `k` and 8-byte nonce `n`.
 type CipherState struct {
 	k   []byte // encryption key
@@ -316,17 +326,8 @@ type CipherState struct {
 	gcm cipher.AEAD
 }
 
-// TODO: only for testing, remove
-func (cs *CipherState) GetKey() []byte {
-	return cs.k
-}
-func (cs *CipherState) GetNonce() []byte {
-	nonce := make([]byte, 12)
-	ble.PutUint64(nonce[4:], cs.n)
-	return nonce
-}
-
-func (cs *CipherState) InitializeKey(k []byte) error {
+// InitializeKey initializes the encryption key `k` and resets the nonce counter to 0.
+func (cs *CipherState) InitializeKey(k [32]byte) error {
 	cs.k = k[:]
 	cs.n = 0
 	var err error
@@ -343,15 +344,45 @@ func (cs *CipherState) getNonce() []byte {
 	cs.n++
 	return nonce
 }
-func (cs *CipherState) EncryptWithAd(ad, plaintext []byte) []byte {
-	if len(cs.k) == 0 {
-		return plaintext
-	}
-	return cs.gcm.Seal(make([]byte, 0, PlainTextLenToCipherTextLen(len(plaintext))), cs.getNonce(), plaintext, ad)
+
+// Encrypt encrypts `plaintext`.
+// It only returns an error when nonce space is exhausted (at 2^64).
+// Be sure to call [CipherState.InitializeKey] before, or this will pass through the plaintext.
+func (cs *CipherState) Encrypt(plaintext []byte) ([]byte, error) {
+	return cs.EncryptWithAd([]byte{}, plaintext)
 }
+
+// Decrypt decrypts `ciphertext`.
+// It returns an error when decrypt fails or when nonce space is exhausted (at 2^64).
+func (cs *CipherState) Decrypt(ciphertext []byte) ([]byte, error) {
+	return cs.DecryptWithAd([]byte{}, ciphertext)
+}
+
+// EncryptWithAd encrypts `plaintext` with `ad` as additional data.
+// It only returns an error when nonce space is exhausted (at 2^64).
+// Be sure to call [CipherState.InitializeKey] before, or this will pass through the plaintext.
+//
+// TODO: make this thread-safe
+// TODO: how do i do security validation lol
+func (cs *CipherState) EncryptWithAd(ad, plaintext []byte) ([]byte, error) {
+	if len(cs.k) == 0 {
+		return plaintext, nil
+	}
+	/// noise doesnt reuse nonces and also treats 2^64 as invalid
+	if cs.n == maxNoiseNonce {
+		return nil, errors.New("nonce space exhausted")
+	}
+	return cs.gcm.Seal(make([]byte, 0, PlainTextLenToCipherTextLen(len(plaintext))), cs.getNonce(), plaintext, ad), nil
+}
+
+// DecryptWithAd decrypts `ciphertext` with `ad` as additional data.
+// It returns an error when decrypt fails or when nonce space is exhausted (at 2^64).
 func (cs *CipherState) DecryptWithAd(ad, ciphertext []byte) ([]byte, error) {
 	if len(cs.k) == 0 {
 		return ciphertext, nil
+	}
+	if cs.n == maxNoiseNonce {
+		return nil, errors.New("nonce space exhausted")
 	}
 	/// FIXME: why cant we reuse ciphertext here?
 	out, err := cs.gcm.Open(make([]byte, 0, len(ciphertext)), cs.getNonce(), ciphertext, ad)
@@ -362,17 +393,45 @@ func (cs *CipherState) DecryptWithAd(ad, ciphertext []byte) ([]byte, error) {
 	return out, nil
 }
 
+// EncryptFrame encrypts a [Frame] for transmission.
 func (cs *CipherState) EncryptFrame(frame Frame) ([]byte, error) {
 	encoded, err := frame.Encode()
 	if err != nil {
 		return nil, err
 	}
-	header := cs.EncryptWithAd([]byte{}, encoded[:FrameHeaderSize])
-	out := cs.EncryptWithAd([]byte{}, encoded[FrameHeaderSize:])
+	header, err := cs.EncryptWithAd([]byte{}, encoded[:FrameHeaderSize])
+	if err != nil {
+		return nil, fmt.Errorf("error while encrypting header: %s", err)
+	}
+	out, err := cs.EncryptWithAd([]byte{}, encoded[FrameHeaderSize:])
+	if err != nil {
+		return nil, fmt.Errorf("error while encrypting payload: %s", err)
+	}
 
 	return append(header, out...), nil
 }
-func (cs *CipherState) DecryptFrame(r io.Reader) (Frame, error) {
+
+// EncryptFrameToWriter encrypts a [Frame] to an [io.Writer] for transmission.
+func (cs *CipherState) EncryptFrameToWriter(frame Frame, w io.Writer) (int, error) {
+	encoded, err := frame.Encode()
+	if err != nil {
+		return 0, err
+	}
+	header, err := cs.Encrypt(encoded[:FrameHeaderSize])
+	if err != nil {
+		return 0, fmt.Errorf("error while encrypting header: %s", err)
+	}
+	payload, err := cs.Encrypt(encoded[FrameHeaderSize:])
+	if err != nil {
+		return 0, fmt.Errorf("error while encrypting payload: %s", err)
+	}
+
+	return w.Write(append(header, payload...))
+}
+
+// DecryptFrameFromReader decrypts a [Frame] from a byte array.
+func (cs *CipherState) DecryptFrame(f []byte) (Frame, error) {
+	r := NewBinaryReader(f)
 	frame := Frame{}
 	/// decrypt the header
 	header := make([]byte, NoiseHeaderSize)
@@ -382,7 +441,7 @@ func (cs *CipherState) DecryptFrame(r io.Reader) (Frame, error) {
 		return Frame{}, fmt.Errorf("error while reading header: %s", err)
 	}
 	if read < NoiseHeaderSize {
-		return Frame{}, errors.New("ciphertext too short")
+		return Frame{}, errors.New("header ciphertext too short")
 	}
 
 	decrypted, err := cs.DecryptWithAd([]byte{}, header)
@@ -401,7 +460,47 @@ func (cs *CipherState) DecryptFrame(r io.Reader) (Frame, error) {
 		return Frame{}, fmt.Errorf("error while reading payload: %s", err)
 	}
 	if read < payloadLen {
-		return Frame{}, errors.New("ciphertext too short")
+		return Frame{}, errors.New("payload ciphertext too short")
+	}
+	decrypted, err = cs.DecryptWithAd([]byte{}, payload)
+	if err != nil {
+		return Frame{}, fmt.Errorf("error while decrypting payload: %s", err)
+	}
+	frame.Payload = decrypted
+	return frame, nil
+}
+
+// DecryptFrameFromReader decrypts a [Frame] from an [io.Reader].
+func (cs *CipherState) DecryptFrameFromReader(r io.Reader) (Frame, error) {
+	frame := Frame{}
+	/// decrypt the header
+	header := make([]byte, NoiseHeaderSize)
+	read, err := io.ReadFull(r, header)
+
+	if err != nil {
+		return Frame{}, fmt.Errorf("error while reading header: %s", err)
+	}
+	if read < NoiseHeaderSize {
+		return Frame{}, errors.New("header ciphertext too short")
+	}
+
+	decrypted, err := cs.DecryptWithAd([]byte{}, header)
+	if err != nil {
+		return Frame{}, fmt.Errorf("error while decrypting header: %s", err)
+	}
+
+	frame.DecodeHeader(decrypted)
+
+	/// now decrypt payload
+	payloadLen := PlainTextLenToCipherTextLen(int(frame.MessageLength))
+	payload := make([]byte, payloadLen)
+	read, err = io.ReadFull(r, payload)
+
+	if err != nil {
+		return Frame{}, fmt.Errorf("error while reading payload: %s", err)
+	}
+	if read < payloadLen {
+		return Frame{}, errors.New("payload ciphertext too short")
 	}
 	decrypted, err = cs.DecryptWithAd([]byte{}, payload)
 	if err != nil {
@@ -443,7 +542,7 @@ func DeserializeAuthorityKey(pubkey string) ([]byte, error) {
 
 // create and sign a [SIGNATURE_NOISE_MESSAGE]
 // copied from public-pool
-func NewAuthoritySignature(authorityPrivkey *btcec.PrivateKey, staticPubkey []byte, validFrom, notValidAfter uint32) (*SIGNATURE_NOISE_MESSAGE, error) {
+func NewAuthoritySignature(authorityPrivkey *btcec.PrivateKey, staticPubkey Pubkey, validFrom, notValidAfter uint32) (*SIGNATURE_NOISE_MESSAGE, error) {
 	m := &SIGNATURE_NOISE_MESSAGE{
 		Version:       CertificateFormatVersion,
 		ValidFrom:     validFrom,
@@ -453,7 +552,7 @@ func NewAuthoritySignature(authorityPrivkey *btcec.PrivateKey, staticPubkey []by
 	if err != nil {
 		return nil, err
 	}
-	buf = append(buf, staticPubkey...)
+	buf = append(buf, staticPubkey[:]...)
 	hash := sha256.Sum256(buf)
 	sig, err := schnorr.Sign(authorityPrivkey, hash[:])
 	if err != nil {

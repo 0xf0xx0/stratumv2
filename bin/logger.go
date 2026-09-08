@@ -105,7 +105,7 @@ func main() {
 	conn.Write(setupBytes)
 	go func() {
 		for {
-			frame, err := recv.DecryptFrame(conn)
+			frame, err := recv.DecryptFrameFromReader(conn)
 			if err != nil {
 				panic(err)
 			}

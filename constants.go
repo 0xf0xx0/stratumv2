@@ -2,6 +2,7 @@ package stratumv2
 
 import (
 	"encoding/binary"
+	"math"
 )
 
 var ble = binary.LittleEndian
@@ -17,6 +18,10 @@ const (
 	NoiseHeaderSize       = 22 // size of an encrypted header
 	FrameHeaderSize       = 6  // size of a plaintext header
 	MacLen                = 16
+)
+
+var (
+	maxNoiseNonce = uint64(math.Pow(2, 64)) - 1
 )
 
 const (

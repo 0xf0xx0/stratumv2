@@ -45,7 +45,7 @@ func TestCerts(t *testing.T) {
 	staticPub := make([]byte, 32)
 	crand.Read(staticPub)
 	now := uint32(time.Now().Unix())
-	cert, err := stratumv2.NewAuthoritySignature(authority.Private, staticPub, 0, now+3600)
+	cert, err := stratumv2.NewAuthoritySignature(authority.Private, stratumv2.Pubkey(staticPub), 0, now+3600)
 	if err != nil {
 		t.Errorf("expected no error, got %v", err)
 	}
@@ -125,12 +125,12 @@ func TestCipherState(t *testing.T) {
 	dec := &stratumv2.CipherState{}
 	key := make([]byte, 32)
 	crand.Read(key)
-	enc.InitializeKey(key)
-	dec.InitializeKey(key)
+	enc.InitializeKey([32]byte(key))
+	dec.InitializeKey([32]byte(key))
 
 	plaintext := []byte("/sneefy snoofy/")
 	t.Logf("plaintext: %x", plaintext)
-	ciphertext := enc.EncryptWithAd([]byte{}, plaintext)
+	ciphertext, _ := enc.Encrypt(plaintext)
 	if len(ciphertext) != len(plaintext)+stratumv2.MacLen {
 		t.Fatalf("expected ciphertext length %d, got %d", len(plaintext)+stratumv2.MacLen, len(ciphertext))
 	}
@@ -138,7 +138,7 @@ func TestCipherState(t *testing.T) {
 	if bytes.Equal(ciphertext[:len(plaintext)], plaintext) {
 		t.Fatalf("expected ciphertext to be different from plaintext")
 	}
-	decrypted, err := dec.DecryptWithAd([]byte{}, ciphertext)
+	decrypted, err := dec.Decrypt(ciphertext)
 	if err != nil {
 		t.Fatalf("expected no error, got %v", err)
 	}
@@ -149,9 +149,9 @@ func TestCipherState(t *testing.T) {
 
 	/// fail with wrong key
 
-	dec.InitializeKey(make([]byte, 32))
-	ciphertext = enc.EncryptWithAd([]byte{}, plaintext)
-	decrypted, err = dec.DecryptWithAd([]byte{}, ciphertext)
+	dec.InitializeKey([32]byte(make([]byte, 32)))
+	ciphertext, _ = enc.Encrypt(plaintext)
+	decrypted, err = dec.Decrypt(ciphertext)
 	if err == nil {
 		t.Fatalf("expected error, got nil")
 	}
@@ -160,8 +160,8 @@ func TestCipherState(t *testing.T) {
 	}
 
 	/// fail with wrong ad
-	dec.InitializeKey(key)
-	ciphertext = enc.EncryptWithAd([]byte{}, plaintext)
+	dec.InitializeKey([32]byte(key))
+	ciphertext, _ = enc.EncryptWithAd([]byte{}, plaintext)
 	decrypted, err = dec.DecryptWithAd([]byte("miZmatX"), ciphertext)
 	if err == nil {
 		t.Fatalf("expected error, got nil")
@@ -171,16 +171,16 @@ func TestCipherState(t *testing.T) {
 	}
 
 	/// nonce check
-	ciphertexta := enc.EncryptWithAd([]byte{}, plaintext)
-	ciphertextb := enc.EncryptWithAd([]byte{}, plaintext)
+	ciphertexta, _ := enc.Encrypt(plaintext)
+	ciphertextb, _ := enc.Encrypt(plaintext)
 	if bytes.Equal(ciphertexta, ciphertextb) {
 		t.Fatalf("expected ciphertexts to be different")
 	}
 
 	/// plaintext passthrough
 	enc = &stratumv2.CipherState{}
-	passthrough := enc.EncryptWithAd([]byte{}, plaintext)
-	passthrough2, _ := enc.DecryptWithAd([]byte{}, plaintext)
+	passthrough, _ := enc.Encrypt(plaintext)
+	passthrough2, _ := enc.Decrypt(plaintext)
 	if !bytes.Equal(passthrough, plaintext) {
 		t.Errorf("expected encrypted text to be equal to plaintext")
 	}
@@ -192,8 +192,8 @@ func TestCipherState(t *testing.T) {
 	/// ignoring those tests, we can safely assume stdlib is working
 
 	for range 10 {
-		ciphertext = enc.EncryptWithAd([]byte{}, plaintext)
-		decrypted, err := enc.DecryptWithAd([]byte{}, ciphertext)
+		ciphertext, _ = enc.Encrypt(plaintext)
+		decrypted, err := enc.Decrypt(ciphertext)
 		if err != nil {
 			t.Errorf("expected no error, got %v", err)
 		}
@@ -229,7 +229,7 @@ func TestHandshake(t *testing.T) {
 	authority := stratumv2.GenerateKeypair()
 	static := stratumv2.GenerateKeypair()
 
-	cert, err := stratumv2.NewAuthoritySignature(authority.Private, static.PublicKeyBytes(), 20, uint32(time.Now().Unix())+3600)
+	cert, err := stratumv2.NewAuthoritySignature(authority.Private, stratumv2.Pubkey(static.PublicKeyBytes()), 20, uint32(time.Now().Unix())+3600)
 	if err != nil {
 		t.Errorf("expected no error, got %v", err)
 	}
@@ -259,17 +259,15 @@ func TestHandshake(t *testing.T) {
 	})
 	wg.Wait()
 
-	t.Logf("srv key+nonce: %x | %x", srvSend.GetKey(), srvSend.GetNonce())
-	t.Logf("cli key+nonce: %x | %x", clientSend.GetKey(), clientRecv.GetNonce())
 	for range 5 {
-		enc := srvSend.EncryptWithAd([]byte{}, data)
+		enc, _ := srvSend.Encrypt(data)
 		if len(enc) != len(data)+stratumv2.MacLen {
 			t.Errorf("encrypted text len isnt expected")
 			return
 		}
 
 		t.Logf("sending: %x (%d bytes)", enc, len(enc))
-		dec, err := clientSend.DecryptWithAd([]byte{}, enc)
+		dec, err := clientSend.Decrypt(enc)
 		if err != nil {
 			t.Errorf("expected no error, got %v", err)
 			return
@@ -286,7 +284,7 @@ func TestHandshake(t *testing.T) {
 	}
 	t.Logf("sending: %x (%d bytes)", enc, len(enc))
 	t.Logf("%x %x", enc[:stratumv2.NoiseHeaderSize], enc[stratumv2.NoiseHeaderSize:])
-	decFrame, err := srvRecv.DecryptFrame(bytes.NewBuffer(enc))
+	decFrame, err := srvRecv.DecryptFrameFromReader(bytes.NewBuffer(enc))
 	if err != nil {
 		t.Errorf("expected no error, got %v", err)
 		return
