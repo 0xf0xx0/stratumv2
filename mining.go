@@ -161,14 +161,13 @@ type OpenExtendedMiningChannelSuccess struct {
 func (m *OpenExtendedMiningChannelSuccess) Encode() ([]byte, error) {
 	out := NewBinaryBuilder()
 
-	// encode embedded struct furst
-	b, err := m.OpenStandardMiningChannelSuccess.Encode()
-	if err != nil {
-		return nil, err
-	}
-
-	return out.Grow(80).AddBytes(b).
+	return out.Grow(80).
+		AddU32(m.RequestID).
+		AddU32(m.ChannelID).
+		AddU256(m.Target).
 		AddU16(m.ExtranonceSize).
+		AddBin32(m.ExtranoncePrefix).
+		AddU32(m.GroupChannelID).
 		Bytes()
 }
 func (m *OpenExtendedMiningChannelSuccess) Decode(b []byte) error {
@@ -177,9 +176,9 @@ func (m *OpenExtendedMiningChannelSuccess) Decode(b []byte) error {
 	m.RequestID = r.ReadU32()
 	m.ChannelID = r.ReadU32()
 	m.Target = r.ReadU256()
+	m.ExtranonceSize = r.ReadU16()
 	m.ExtranoncePrefix = r.ReadBin32()
 	m.GroupChannelID = r.ReadU32()
-	m.ExtranonceSize = r.ReadU16()
 
 	return r.Error()
 }
