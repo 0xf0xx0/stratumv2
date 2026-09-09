@@ -194,9 +194,9 @@ func (hs *HandshakeState) PerformHandshakeInitiator(rw io.ReadWriter, authorityP
 	recv.InitializeKey([32]byte(temp_k2))
 	return send, recv, nil
 }
-func (hs *HandshakeState) PerformHandshakeResponder(rw io.ReadWriter, cert *SIGNATURE_NOISE_MESSAGE, staticKeys *Keypair) (send, recv *CipherState, err error) {
-	send = &CipherState{}
+func (hs *HandshakeState) PerformHandshakeResponder(rw io.ReadWriter, cert *SIGNATURE_NOISE_MESSAGE, staticKeys *Keypair) (recv, send *CipherState, err error) {
 	recv = &CipherState{}
+	send = &CipherState{}
 
 	/// 4.5.1 Handshake Act 1: NX-handshake part 1
 	ck, h := handshakeInit()
@@ -261,11 +261,11 @@ func (hs *HandshakeState) PerformHandshakeResponder(rw io.ReadWriter, cert *SIGN
 	temp_k1, temp_k2 := HKDF(hs.ck[:], []byte{})
 	// println(fmt.Sprintf("[Responder] k1=%x, k2=%x", temp_k1, temp_k2))
 
-	send.InitializeKey([32]byte(temp_k1))
-	recv.InitializeKey([32]byte(temp_k2))
+	recv.InitializeKey([32]byte(temp_k1))
+	send.InitializeKey([32]byte(temp_k2))
 	// initiator->responder, responder->initiator
 	// (c2s, s2c)
-	return send, recv, nil
+	return recv, send, nil
 }
 
 func (hs *HandshakeState) EncryptAndHash(plaintext []byte) []byte {
@@ -438,7 +438,7 @@ func (cs *CipherState) DecryptFrame(f []byte) (Frame, error) {
 	read, err := io.ReadFull(r, header)
 
 	if err != nil {
-		return Frame{}, fmt.Errorf("error while reading header: %s", err)
+		return Frame{}, err
 	}
 	if read < NoiseHeaderSize {
 		return Frame{}, errors.New("header ciphertext too short")
@@ -457,7 +457,7 @@ func (cs *CipherState) DecryptFrame(f []byte) (Frame, error) {
 	read, err = io.ReadFull(r, payload)
 
 	if err != nil {
-		return Frame{}, fmt.Errorf("error while reading payload: %s", err)
+		return Frame{}, err
 	}
 	if read < payloadLen {
 		return Frame{}, errors.New("payload ciphertext too short")
@@ -478,7 +478,7 @@ func (cs *CipherState) DecryptFrameFromReader(r io.Reader) (Frame, error) {
 	read, err := io.ReadFull(r, header)
 
 	if err != nil {
-		return Frame{}, fmt.Errorf("error while reading header: %s", err)
+		return Frame{}, err
 	}
 	if read < NoiseHeaderSize {
 		return Frame{}, errors.New("header ciphertext too short")
@@ -497,7 +497,7 @@ func (cs *CipherState) DecryptFrameFromReader(r io.Reader) (Frame, error) {
 	read, err = io.ReadFull(r, payload)
 
 	if err != nil {
-		return Frame{}, fmt.Errorf("error while reading payload: %s", err)
+		return Frame{}, err
 	}
 	if read < payloadLen {
 		return Frame{}, errors.New("payload ciphertext too short")
