@@ -38,21 +38,27 @@ func (f *Frame) Encode() ([]byte, error) {
 		return nil, errors.New("Frame.Encode: MessageLength != len(Payload)")
 	}
 	out := NewBinaryBuilder().Grow(FrameHeaderSize + int(f.MessageLength))
+	/// FIXME: properly encode tlvs
+	if f.TLVs != nil {
+		tlvOut := NewBinaryBuilder()
+		for _, tlv := range f.TLVs {
+			enc, err := tlv.Encode()
+			if err != nil {
+				return nil, err
+			}
+			tlvOut.AddBytes(enc)
+		}
+		f.MessageLength += U24(tlvOut.Len())
+		b, err := tlvOut.Bytes()
+		if err != nil {
+			return nil, err
+		}
+		f.Payload = append(f.Payload, b...)
+	}
 	out.AddU16(f.ExtensionType).
 		AddU8(uint8(f.MessageType)).
 		AddU24(f.MessageLength).
 		AddBytes(f.Payload)
-	/// FIXME: properly encode tlvs
-	// if f.TLVs != nil {
-	// 	for _, tlv := range f.TLVs {
-	// 		enc, err := tlv.Encode()
-	// 		if err != nil {
-	// 			return nil, err
-	// 		}
-	// 		out.AddBytes(enc)
-	// 	}
-	// 	f.MessageLength += U24(out.Len())
-	// }
 
 	return out.Bytes()
 }
