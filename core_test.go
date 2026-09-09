@@ -8,7 +8,7 @@ import (
 )
 
 func TestSetupConnectionEncDec(t *testing.T) {
-	shouldBe := hexDec("000000500000000200020002000000055b3a3a315d1d160748617368666f7803486578296573702d6d696e65722d7636392e3432302d6576696c2d636c6f7365642d736f757263652d666f726b08626c757563687575")
+	shouldBe := hexDec("0000002800000002000200040000000c33382e34392e3231322e39311d160662697461786506424d313337300000")
 	frame := stratumv2.Frame{}
 	msg := stratumv2.SetupConnection{}
 	if err := frame.Decode(shouldBe); err != nil {
@@ -28,7 +28,7 @@ func TestSetupConnectionEncDec(t *testing.T) {
 	if err != nil {
 		t.Fatal(err.Error())
 	}
-	testEncode(t, stratumv2.ExtensionTypeCore, stratumv2.MessageSetupConnection, bb, shouldBe)
+	compareFrameWithExpected(t, stratumv2.ExtensionTypeCore, frame.MessageType, bb, shouldBe)
 }
 func TestSetupConnectionSuccessEncDec(t *testing.T) {
 	shouldBe := hexDec("000001060000020000000000")
@@ -51,11 +51,11 @@ func TestSetupConnectionSuccessEncDec(t *testing.T) {
 	if err != nil {
 		t.Fatal(err.Error())
 	}
-	testEncode(t, stratumv2.ExtensionTypeCore, stratumv2.MessageSetupConnectionSuccess, bb, shouldBe)
+	compareFrameWithExpected(t, stratumv2.ExtensionTypeCore, frame.MessageType, bb, shouldBe)
 }
 
 func TestOpenExtendedMiningChannelEncDec(t *testing.T) {
-	shouldBe := hexDec("000013690000010000003e62633170737165617a3068677a3571326c6370366e617977363970747a34657973396b616a6672756e6e363434657a38356b757877337973736338727570a5d4685300000000ffffffffffffffffffffffffffffffffffffffffffffffffffffffff0400")
+	shouldBe := hexDec("0000133100000100000006796970617865359e8253ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff0200")
 	frame := stratumv2.Frame{}
 	msg := stratumv2.OpenExtendedMiningChannel{}
 	if err := frame.Decode(shouldBe); err != nil {
@@ -76,10 +76,33 @@ func TestOpenExtendedMiningChannelEncDec(t *testing.T) {
 		t.Fatal(err.Error())
 	}
 	t.Logf("%+v", msg)
-	testEncode(t, stratumv2.ExtensionTypeCore, stratumv2.MessageOpenExtendedMiningChannel, bb, shouldBe)
+	compareFrameWithExpected(t, stratumv2.ExtensionTypeCore, frame.MessageType, bb, shouldBe)
+}
+func TestOpenExtendedMiningChannelSuccessEncDec(t *testing.T) {
+	shouldBe := hexDec("00001433000001000000b0190b950726db55f99494d9693ad7079cbab4bf336c9c7524ef963b0817190000000000030004950b19b000000000")
+	frame := stratumv2.Frame{}
+	msg := stratumv2.OpenExtendedMiningChannelSuccess{}
+	if err := frame.Decode(shouldBe); err != nil {
+		t.Logf("%+v", frame)
+		t.Fatal(err.Error())
+	}
+	if frame.MessageType != stratumv2.MessageOpenExtendedMiningChannelSuccess {
+		t.Fatal("message type mismatch")
+	}
+	if err := msg.Decode(frame.Payload); err != nil {
+		t.Logf("%+v", msg)
+		t.Fatal(err.Error())
+	}
+
+	/// enc
+	bb, err := msg.Encode()
+	if err != nil {
+		t.Fatal(err.Error())
+	}
+	compareFrameWithExpected(t, stratumv2.ExtensionTypeCore, frame.MessageType, bb, shouldBe)
 }
 
-func testEncode(t *testing.T, ExtensionType stratumv2.Extension, MessageType stratumv2.MessageType, bb, shouldBe []byte) {
+func compareFrameWithExpected(t *testing.T, ExtensionType stratumv2.Extension, MessageType stratumv2.MessageType, bb, shouldBe []byte) {
 	frame := stratumv2.Frame{
 		ExtensionType: ExtensionType,
 		MessageType:   MessageType,

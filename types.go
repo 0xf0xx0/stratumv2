@@ -13,7 +13,7 @@ type MessageType uint8
 type Error = string
 type Flag uint32               // MAYBE: add helpers for setting/clearing bits?
 type Pubkey = [32]byte         // X coordinate of Secp256k1 public key (see BIP 340)
-type EllswiftPubkey = [64]byte // Ellswift-encoded [Pubkey]
+type EllswiftPubkey = [64]byte // ElligatorSwift encoded X coordinate of Secp256k1 [Pubkey] (see BIP 324)
 type Signature = [64]byte      // Schnorr signature on Secp256k1 (see BIP 340)
 
 // During the handshake, initiator receives [SIGNATURE_NOISE_MESSAGE] and server's static public key.

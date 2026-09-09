@@ -8,6 +8,14 @@ https://stratumprotocol.org/
 - core messages
 - mining protocol
 
+# TODO
+- implement saving/loading of Keypair
+- properly implement TLVs
+- implement all protocols
+    - jobs
+    - template
+- docs
+
 ## usage
 
 ```go
@@ -34,10 +42,3 @@ if err != nil {
 	return
 }
 ```
-
-# TODO
-- implement all protocols
-    - jobs
-    - template
-- implement noise
-- doc comments

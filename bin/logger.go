@@ -36,16 +36,16 @@ func main() {
 	sigs := make(chan os.Signal, 1)
 	signal.Notify(sigs, syscall.SIGINT, syscall.SIGTERM)
 	setupmsg := stratumv2.SetupConnection{
-		Protocol:     stratumv2.MiningProtocol,
-		MinVersion:   stratumv2.ProtocolVersion,
-		MaxVersion:   stratumv2.ProtocolVersion,
-		Flags:        stratumv2.RequiresExtendedChannelsFlag,
-		EndpointPort: uint16(poolport),
-		EndpointHost: poolhost,
-		DeviceVendor: "0xf0xx0",
-		// DeviceHardwareVersion: "maybe",
-		// DeviceFirmware:        "go-sv2-test",
-		// DeviceID:              "bluuchuu",
+		Protocol:              stratumv2.MiningProtocol,
+		MinVersion:            stratumv2.ProtocolVersion,
+		MaxVersion:            stratumv2.ProtocolVersion,
+		Flags:                 stratumv2.RequiresExtendedChannelsFlag,
+		EndpointPort:          uint16(poolport),
+		EndpointHost:          poolhost,
+		DeviceVendor:          "0xf0xx0",
+		DeviceHardwareVersion: "test",
+		DeviceFirmware:        "git.0xf0xx0.eth.limo/0xf0xx0/stratumv2",
+		DeviceID:              "paws",
 	}
 	openchanmsg := stratumv2.OpenExtendedMiningChannel{
 		OpenStandardMiningChannel: stratumv2.OpenStandardMiningChannel{
@@ -74,7 +74,6 @@ func main() {
 		MessageLength: stratumv2.U24(len(openchanPayload)),
 		Payload:       openchanPayload,
 	}
-	// _ = openchanFrame
 
 	cliPaw := &stratumv2.HandshakeState{}
 	authorityPubkey, err := stratumv2.DeserializeAuthorityKey(authkey)
@@ -111,6 +110,11 @@ func main() {
 			}
 			bytes, _ := frame.Encode()
 			fmt.Printf("RX: %x\n", bytes)
+
+			if frame.MessageType == stratumv2.MessageOpenExtendedMiningChannelSuccess {
+				msg := stratumv2.OpenExtendedMiningChannelSuccess{}
+				msg.Decode(frame.Payload)
+			}
 		}
 	}()
 

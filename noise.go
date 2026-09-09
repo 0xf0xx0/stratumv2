@@ -46,16 +46,25 @@ func (m *SIGNATURE_NOISE_MESSAGE) Encode() ([]byte, error) {
 		Bytes()
 }
 
+// Keypair stores a secp256k1 key and its ElligatorSwift-encoded public key.
 type Keypair struct {
 	Private        *btcec.PrivateKey
 	Public         *btcec.PublicKey
 	publicX        []byte   // X-coordinate of the public key
-	PublicEllswift [64]byte // EllSwift encoded serialization of the X-coordinate of EC point
+	publicEllswift [64]byte // EllSwift encoded serialization of the X-coordinate of EC point
 }
 
-func (kp *Keypair) SerializeEllswift() []byte {
-	return kp.PublicEllswift[:]
+// SerializeEllswift returns the ElligatorSwift-encoded public key as an [EllswiftPubkey].
+func (kp *Keypair) SerializeEllswift() EllswiftPubkey {
+	return kp.publicEllswift
 }
+
+// SerializeEllswiftBytes returns the ElligatorSwift-encoded public key as a byte array.
+func (kp *Keypair) SerializeEllswiftBytes() []byte {
+	return kp.publicEllswift[:]
+}
+
+// PublicKeyBytes returns the public key as a byte array.
 func (kp *Keypair) PublicKeyBytes() []byte {
 	if kp.publicX != nil {
 		return kp.publicX
@@ -64,12 +73,15 @@ func (kp *Keypair) PublicKeyBytes() []byte {
 	return kp.publicX
 }
 
+// PublicKey returns the public key as a [Pubkey].
+func (kp *Keypair) PublicKey() Pubkey {
+	return Pubkey(kp.PublicKeyBytes())
+}
+
 type HandshakeState struct {
-	cs    *CipherState
-	h     [32]byte // handshake hash. Accumulated hash of all handshake data that has been sent and received so far during the handshake process
-	ck    [32]byte // chaining key. Accumulated hash of all previous ECDH outputs. At the end of the handshake `ck` is used to derive encryption key `k`.
-	e, re Keypair  // ephemeral keys. Ephemeral key and remote party's ephemeral key, respectively.
-	s, rs Keypair  // static keys. Static key and remote party's static key, respectively.
+	cs *CipherState
+	h  [32]byte // handshake hash. Accumulated hash of all handshake data that has been sent and received so far during the handshake process
+	ck [32]byte // chaining key. Accumulated hash of all previous ECDH outputs. At the end of the handshake `ck` is used to derive encryption key `k`.
 }
 
 func (hs *HandshakeState) AuthServerCertificate(cert *SIGNATURE_NOISE_MESSAGE, staticPubkey []byte, authorityPubkey [32]byte) (bool, error) {
@@ -130,15 +142,14 @@ func (hs *HandshakeState) PerformHandshakeInitiator(rw io.ReadWriter, authorityP
 	/// "generates ephemeral keypair e, appends e.public_key.serializeEllSwift() to the buffer (64 bytes plaintext EllSwift encoded public key)"
 	ephemeral := GenerateKeypair()
 	// println(fmt.Sprintf("[Initiatior] ellswift: %x", ephemeral.SerializeEllswift()))
-	out.Write(ephemeral.SerializeEllswift())
+	out.Write(ephemeral.SerializeEllswiftBytes())
 
 	/// "calls MixHash(e.public_key)"
-	/// ellswift ig?
-	hs.MixHash(ephemeral.SerializeEllswift())
+	hs.mixHash(ephemeral.SerializeEllswiftBytes())
 	// println(fmt.Sprintf("[Initiatior] After MixHash(e): h=%x", hs.h))
 	/// "calls EncryptAndHash() with empty payload and appends the ciphertext to the buffer"
 	/// could be hs.MixHash([]byte{})
-	hs.EncryptAndHash([]byte{})
+	hs.encryptAndHash([]byte{})
 	// println(fmt.Sprintf("[Initiatior] After EncryptAndHash(empty): h=%x", hs.h))
 
 	rw.Write(out.Bytes())
@@ -151,17 +162,17 @@ func (hs *HandshakeState) PerformHandshakeInitiator(rw io.ReadWriter, authorityP
 	encryptedStatic := pt2[64:144]
 	encryptedCert := pt2[144:]
 
-	hs.MixHash(remoteEphemeral)
+	hs.mixHash(remoteEphemeral)
 	// println(fmt.Sprintf("[Initiatior] got se: %x", remoteEphemeral))
 	// println(fmt.Sprintf("[Initiatior] got es: %x", encryptedStatic))
 	// println(fmt.Sprintf("[Initiatior] After MixHash(se): h=%x", hs.h))
 
-	sharedeeDH := hs.ECDH(ephemeral, [64]byte(remoteEphemeral), true)
+	sharedeeDH := hs.ecdh(ephemeral, [64]byte(remoteEphemeral), true)
 	// println(fmt.Sprintf("[Initiatior] ee DH shared secret: %x", sharedeeDH))
-	hs.MixKey(sharedeeDH)
+	hs.mixKey(sharedeeDH)
 
 	// println(fmt.Sprintf("[Initiatior] h=%x", hs.h))
-	plainStatic, err := hs.DecryptAndHash(encryptedStatic)
+	plainStatic, err := hs.decryptAndHash(encryptedStatic)
 	if err != nil {
 		return nil, nil, err
 	}
@@ -169,18 +180,19 @@ func (hs *HandshakeState) PerformHandshakeInitiator(rw io.ReadWriter, authorityP
 
 	// println(fmt.Sprintf("[Initiatior] decrypted se: %x", plainStatic))
 
-	sharedesDH := hs.ECDH(ephemeral, [64]byte(plainStatic), true)
+	sharedesDH := hs.ecdh(ephemeral, [64]byte(plainStatic), true)
 	// println(fmt.Sprintf("[Initiatior] es DH shared secret: %x", sharedesDH))
-	hs.MixKey(sharedesDH)
+	hs.mixKey(sharedesDH)
 	// println(fmt.Sprintf("[Initiatior] After MixKey(es): ck=%x", hs.ck))
 	// println(fmt.Sprintf("[Initiatior] h (AD for decrypt cert): h=%x", hs.h))
 
 	// fmt.Println(SerializeAuthorityKey(plainStatic))
-	plainCert, err := hs.DecryptAndHash(encryptedCert)
+	plainCert, err := hs.decryptAndHash(encryptedCert)
 	if err != nil {
 		return nil, nil, err
 	}
 	cert := &SIGNATURE_NOISE_MESSAGE{}
+	/// TODO: return certificate for user validation
 	if err := cert.Decode(plainCert); err != nil {
 		println(len(encryptedCert))
 		return nil, nil, err
@@ -213,10 +225,10 @@ func (hs *HandshakeState) PerformHandshakeResponder(rw io.ReadWriter, cert *SIGN
 	remoteEphemeral := make([]byte, 64)
 	rw.Read(remoteEphemeral)
 	// println(fmt.Sprintf("[Responder] got ie: %x", remoteEphemeral))
-	hs.MixHash(remoteEphemeral)
+	hs.mixHash(remoteEphemeral)
 	// println(fmt.Sprintf("[Responder] After MixHash(ie): h=%x", hs.h))
 
-	hs.DecryptAndHash([]byte{})
+	hs.decryptAndHash([]byte{})
 	// println(fmt.Sprintf("[Responder] After DecryptAndHash(empty): h=%x", hs.h))
 
 	/// 4.5.2 Handshake Act 2: NX-handshake part 2
@@ -224,26 +236,26 @@ func (hs *HandshakeState) PerformHandshakeResponder(rw io.ReadWriter, cert *SIGN
 	out := bytes.Buffer{}
 	ephemeral := GenerateKeypair()
 	// println(fmt.Sprintf("[Responder] se: %x", ephemeral.SerializeEllswift()))
-	out.Write(ephemeral.SerializeEllswift())
+	out.Write(ephemeral.SerializeEllswiftBytes())
 
-	hs.MixHash(ephemeral.SerializeEllswift())
+	hs.mixHash(ephemeral.SerializeEllswiftBytes())
 	// println(fmt.Sprintf("[Responder] After MixHash(se): h=%x", hs.h))
 
-	sharedeeDH := hs.ECDH(ephemeral, [64]byte(remoteEphemeral), false)
+	sharedeeDH := hs.ecdh(ephemeral, [64]byte(remoteEphemeral), false)
 	// println(fmt.Sprintf("[Responder] ee DH shared secret: %x", sharedeeDH))
-	hs.MixKey(sharedeeDH)
+	hs.mixKey(sharedeeDH)
 	// println(fmt.Sprintf("[Responder] After MixKey(ee): ck=%x", hs.ck))
 
 	// println(fmt.Sprintf("[Responder] h (AD for encrypt static): h=%x", hs.h))
 	// println(fmt.Sprintf("[Responder] Static pub (plaintext): %x", staticKeys.SerializeEllswift()))
 
-	out.Write(hs.EncryptAndHash(staticKeys.SerializeEllswift()))
+	out.Write(hs.encryptAndHash(staticKeys.SerializeEllswiftBytes()))
 	// println(fmt.Sprintf("[Responder] Encrypted static (%d bytes): %x", len(x), x))
 
-	sharedesDH := hs.ECDH(staticKeys, [64]byte(remoteEphemeral), false)
+	sharedesDH := hs.ecdh(staticKeys, [64]byte(remoteEphemeral), false)
 	// println(fmt.Sprintf("[Responder] es DH shared secret (responder): %x", sharedesDH))
 
-	hs.MixKey(sharedesDH)
+	hs.mixKey(sharedesDH)
 	// println(fmt.Sprintf("[Responder] After MixKey(es): ck=%x", hs.ck))
 
 	certBytes, err := cert.Encode()
@@ -254,7 +266,7 @@ func (hs *HandshakeState) PerformHandshakeResponder(rw io.ReadWriter, cert *SIGN
 	// println(fmt.Sprintf("[Responder] h (AD for encrypt cert): h=%x", hs.h))
 	// println(fmt.Sprintf("[Responder] Cert payload (%d bytes): %x", len(certBytes), certBytes))
 
-	out.Write(hs.EncryptAndHash(certBytes))
+	out.Write(hs.encryptAndHash(certBytes))
 	rw.Write(out.Bytes())
 	out.Reset()
 
@@ -268,7 +280,7 @@ func (hs *HandshakeState) PerformHandshakeResponder(rw io.ReadWriter, cert *SIGN
 	return recv, send, nil
 }
 
-func (hs *HandshakeState) EncryptAndHash(plaintext []byte) []byte {
+func (hs *HandshakeState) encryptAndHash(plaintext []byte) []byte {
 	var ciphertext []byte
 	if len(hs.cs.k) != 0 {
 		/// NOTE: at this early stage nonce wont be anywhere close to the limit
@@ -276,10 +288,10 @@ func (hs *HandshakeState) EncryptAndHash(plaintext []byte) []byte {
 	} else {
 		ciphertext = plaintext
 	}
-	hs.MixHash(ciphertext)
+	hs.mixHash(ciphertext)
 	return ciphertext
 }
-func (hs *HandshakeState) DecryptAndHash(ciphertext []byte) ([]byte, error) {
+func (hs *HandshakeState) decryptAndHash(ciphertext []byte) ([]byte, error) {
 	var plaintext []byte
 	var err error
 	if len(hs.cs.k) != 0 {
@@ -290,27 +302,18 @@ func (hs *HandshakeState) DecryptAndHash(ciphertext []byte) ([]byte, error) {
 	} else {
 		plaintext = ciphertext
 	}
-	hs.MixHash(ciphertext)
+	hs.mixHash(ciphertext)
 	return plaintext, err
 }
-
-// MixHash is exposed for convenience.
-// You usually want to use [HandshakeState.PerformHandshakeInitiator]/[HandshakeState.PerformHandshakeResponder].
-func (hs *HandshakeState) MixHash(data []byte) {
+func (hs *HandshakeState) mixHash(data []byte) {
 	hs.h = sha256.Sum256(append(hs.h[:], data...))
 }
-
-// MixKey is exposed for convenience.
-// You usually want to use [HandshakeState.PerformHandshakeInitiator]/[HandshakeState.PerformHandshakeResponder].
-func (hs *HandshakeState) MixKey(inputKeyMaterial []byte) {
+func (hs *HandshakeState) mixKey(inputKeyMaterial []byte) {
 	ck, temp := HKDF(hs.ck[:], inputKeyMaterial)
 	hs.ck = [32]byte(ck)
 	hs.cs.InitializeKey([32]byte(temp))
 }
-
-// ECDH is exposed for convenience.
-// You usually want to use [HandshakeState.PerformHandshakeInitiator]/[HandshakeState.PerformHandshakeResponder].
-func (hs *HandshakeState) ECDH(k *Keypair, remoteKey EllswiftPubkey, initiator bool) []byte {
+func (hs *HandshakeState) ecdh(k *Keypair, remoteKey EllswiftPubkey, initiator bool) []byte {
 	hash, err := ellswift.V2Ecdh(k.Private, remoteKey, [64]byte(k.SerializeEllswift()), initiator)
 	if err != nil {
 		panic(err)
@@ -393,7 +396,7 @@ func (cs *CipherState) DecryptWithAd(ad, ciphertext []byte) ([]byte, error) {
 	return out, nil
 }
 
-// EncryptFrame encrypts a [Frame] for transmission.
+// EncryptFrame encrypts a [Frame] to a byte array.
 func (cs *CipherState) EncryptFrame(frame Frame) ([]byte, error) {
 	encoded, err := frame.Encode()
 	if err != nil {
@@ -411,7 +414,7 @@ func (cs *CipherState) EncryptFrame(frame Frame) ([]byte, error) {
 	return append(header, out...), nil
 }
 
-// EncryptFrameToWriter encrypts a [Frame] to an [io.Writer] for transmission.
+// EncryptFrameToWriter encrypts a [Frame] to an [io.Writer].
 func (cs *CipherState) EncryptFrameToWriter(frame Frame, w io.Writer) (int, error) {
 	encoded, err := frame.Encode()
 	if err != nil {
@@ -573,6 +576,8 @@ func HKDF(chainingKey, inputKeyMaterial []byte) ([]byte, []byte) {
 	out2 := HmacHash(temp, append(out1, 0x02))
 	return out1, out2
 }
+
+// TODO: doesnt btcd already have this?
 func TaggedHash(a, b, c []byte) []byte {
 	hash := sha256.New()
 	/// SHA256("bip324_ellswift_xonly_ecdh")
@@ -604,6 +609,6 @@ func GenerateKeypair() *Keypair {
 	return &Keypair{
 		Private:        priv,
 		Public:         priv.PubKey(),
-		PublicEllswift: ellswiftPub,
+		publicEllswift: ellswiftPub,
 	}
 }

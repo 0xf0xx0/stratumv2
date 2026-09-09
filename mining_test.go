@@ -1,99 +1,131 @@
 package stratumv2_test
 
 import (
-	"encoding/hex"
 	"testing"
 
 	"git.0xf0xx0.eth.limo/0xf0xx0/stratumv2"
-	"github.com/btcsuite/btcd/chainhash/v2"
 )
 
-func TestExtendedJobDecode(t *testing.T) {
+func TestNewExtendedMiningJob(t *testing.T) {
+	shouldBe := hexDec("00001f920100b0190b95010000000000000020010519f25b3c44389ffc09527689d9fd3b104ef425d934f4841b27a31c26d2de636bd56ba09ef8d29c50dff7debef84fa0139de4ca3db85f475fe5de357b8f927f0e923d1dc2a5718909478510d6e140ed7e2dd0c60b0319b89db789075f4c86bcd168534a4c36e5e1695165c64c1d1dc3c9fb4c66c671fd994a52e20eaf88459b330ddfe227c50e18eb23a0ead6c3ef4f20f9fa89d42d24b7256ea260601460bdcd7c0001000000010000000000000000000000000000000000000000000000000000000000000000ffffffff590341500201e94a2f706f676f6c6f202d2076312e312e35202d20746573746e657434207375636b73206173732c206675636b20796f7520616c6c202d20646563656e7472616c697a65206f72206469652f076300feffffff020000000000000000266a24aa21a9edd00fcb727194d75dc197993f8ca4cd02c81ff40d48c81f96bab3961a6f2476a42a5d062a01000000225120ad6d194b43d3d249363724df8f961194112a18143e6e077475925bcf458f9dbb40500200")
 
-	b := hexDec("2d00000059b92e0101dbf4256a00000020010c9d0df206ca787f5ef6a0673c59e1e6e6b0d04629b434e16fa0eb92d2434f23b9ac14e5f8b7f44506f9704f616b2f05fc1b0ea9e3c15c1780d77201b1c8624534cf69581a6ff276567c9cbff22fbccb699146410e99818e803ab62c7b81cd6358909c411002b8f6c9ce2a9765b07e8d23a74ebd58fb554d8ec7e51bab6189602026603cb2ce317677277449ff0ff2f8c901435019212f79be91ae0565a5fd0d699eb03556eea52f878c81542f8ca4836c6777226bdbf34401b3e1166d107fc7aefac91ecae611b1ae9945ebadf14befded136a8938a433d827154d34ede204e7d4875406246821a7d9ba9464ed414477f37189eb7bea2953f38cbe59111659b742c409b1a5a5b79441241d368770f2dc28d1838d9bdc9d702a683c6cf6221ce214dfc9afb949ff75cbf64e845a324d0f18a128c82bf9719a7efaf62109a78a1569b55687630daa12a730fa34a67f5b0fbab1f8abfe47dba212bcebc3912976a0fbae218ebc56bb4cd38fd3b71c346bb5495c8ea956593e3bbb1fbc7adb051aefa390002000000010000000000000000000000000000000000000000000000000000000000000000ffffffff1903c4890e5075626c69632d506f6f6c6300ffffffff025444c312000000002251207ad80adf83bc1d7de821b64903694ce5e71d55cefaa2692812f75ee6ba182abf0000000000000000266a24aa21a9ed6543d3755dfba0787f50c57aa1988fd1f934381b80af24dd312169c29701eb8600000000")
-
-	m := stratumv2.NewExtendedMiningJob{}
-
-	if err := m.Decode(b); err != nil {
-		t.Logf("%+v", m)
+	frame := stratumv2.Frame{}
+	msg := stratumv2.NewExtendedMiningJob{}
+	if err := frame.Decode(shouldBe); err != nil {
+		t.Logf("%+v", frame)
 		t.Fatal(err.Error())
 	}
-	t.Logf("%+v", m)
-}
-
-func TestExtendedJobEncode(t *testing.T) {
-	cp1, _ := hex.DecodeString("00ff00ff00ff00ff00ff00fffe")
-	cp2, _ := hex.DecodeString("ff00ff00ff00ff00ff00ff00")
-	m := stratumv2.NewExtendedMiningJob{
-		ChannelID:             69,
-		JobID:                 420,
-		MinTime:               []uint32{546576875},
-		Version:               1,
-		MerklePath:            []stratumv2.U256{stratumv2.U256(chainhash.DoubleHashH([]byte("foobar")))},
-		VersionRollingAllowed: true,
-		CoinbasePrefix:        cp1,
-		CoinbaseSuffix:        cp2,
+	if frame.MessageType != stratumv2.MessageNewExtendedMiningJob {
+		t.Fatal("message type mismatch")
 	}
-	b, err := m.Encode()
+	if err := msg.Decode(frame.Payload); err != nil {
+		t.Logf("%+v", msg)
+		t.Fatal(err.Error())
+	}
+
+	/// enc
+	bb, err := msg.Encode()
 	if err != nil {
 		t.Fatal(err.Error())
 	}
-	t.Logf("%x", b)
+	compareFrameWithExpected(t, stratumv2.ExtensionTypeCore, frame.MessageType, bb, shouldBe)
 }
 
-func TestExtendedSubmitDecode(t *testing.T) {
-	b := hexDec("00801b230000370000000000000092aa1300d3bee007bb48376a00c008200a00000000000000000001")
-	f := stratumv2.Frame{}
-	m := stratumv2.SubmitSharesExtended{}
-	if err := f.Decode(b); err != nil {
-		t.Logf("%+v", f)
+func TestSubmitSharesExtended(t *testing.T) {
+	shouldBe := hexDec("00801b1c0000b0190b950000000001000000759253b49800a16a00000520030d0000")
+	frame := stratumv2.Frame{}
+	msg := stratumv2.SubmitSharesExtended{}
+	if err := frame.Decode(shouldBe); err != nil {
+		t.Logf("%+v", frame)
 		t.Fatal(err.Error())
 	}
-	if f.MessageType != stratumv2.MessageSubmitSharesExtended {
-		t.Fatal("not SubmitSharesExtended message")
+	if frame.MessageType != stratumv2.MessageSubmitSharesExtended {
+		t.Fatal("message type mismatch")
 	}
-	if err := m.Decode(f.Payload); err != nil {
-		t.Logf("%+v", m)
+	if err := msg.Decode(frame.Payload); err != nil {
+		t.Logf("%+v", msg)
 		t.Fatal(err.Error())
 	}
-	t.Logf("%+v", m)
+
+	/// enc
+	bb, err := msg.Encode()
+	if err != nil {
+		t.Fatal(err.Error())
+	}
+	compareFrameWithExpected(t, stratumv2.ExtensionTypeCore, frame.MessageType, bb, shouldBe)
 }
 
-func TestSubmitAccept(t *testing.T) {
+func TestSubmitSharesSuccess(t *testing.T) {
+	shouldBe := hexDec("00001c140000b0190b9500000000010000004336000000000000")
 
-	b := hexDec("2d0000000000000001000000491b000000000000")
-
-	m := stratumv2.SubmitSharesSuccess{}
-
-	if err := m.Decode(b); err != nil {
-		t.Logf("%+v", m)
+	frame := stratumv2.Frame{}
+	msg := stratumv2.SubmitSharesSuccess{}
+	if err := frame.Decode(shouldBe); err != nil {
+		t.Logf("%+v", frame)
 		t.Fatal(err.Error())
 	}
-	t.Logf("%+v", m)
+	if frame.MessageType != stratumv2.MessageSubmitSharesSuccess {
+		t.Fatal("message type mismatch")
+	}
+	if err := msg.Decode(frame.Payload); err != nil {
+		t.Logf("%+v", msg)
+		t.Fatal(err.Error())
+	}
+
+	/// enc
+	bb, err := msg.Encode()
+	if err != nil {
+		t.Fatal(err.Error())
+	}
+	compareFrameWithExpected(t, stratumv2.ExtensionTypeCore, frame.MessageType, bb, shouldBe)
 }
 
 func TestSetTarget(t *testing.T) {
+	shouldBe := hexDec("000021240000b0190b950726db55f99494d9693ad7079cbab4bf336c9c7524ef963b0817190000000000")
 
-	b := hexDec("2d000000000000000000000000000000000000000000000000000000f8ff070000000000")
-
-	m := stratumv2.SetTarget{}
-
-	if err := m.Decode(b); err != nil {
-		t.Logf("%+v", m)
+	frame := stratumv2.Frame{}
+	msg := stratumv2.SetTarget{}
+	if err := frame.Decode(shouldBe); err != nil {
+		t.Logf("%+v", frame)
 		t.Fatal(err.Error())
 	}
-	t.Logf("%+v", m)
+	if frame.MessageType != stratumv2.MessageSetTarget {
+		t.Fatal("message type mismatch")
+	}
+	if err := msg.Decode(frame.Payload); err != nil {
+		t.Logf("%+v", msg)
+		t.Fatal(err.Error())
+	}
+
+	/// enc
+	bb, err := msg.Encode()
+	if err != nil {
+		t.Fatal(err.Error())
+	}
+	compareFrameWithExpected(t, stratumv2.ExtensionTypeCore, frame.MessageType, bb, shouldBe)
 }
 
 func TestSetNewPrevHash(t *testing.T) {
+	shouldBe := hexDec("000020300000b0190b9501000000a4c97650f945f66c17b6575ad2578fb5e0c1236c59d4f4cc4c7dbdec000000009800a16a693d0319")
 
-	b := hexDec("2d0000006b202f01c46b633188fbe8a156e2c1fdb6fa92888efce6e618960000000000000000000061f5256a8f060217")
-
-	m := stratumv2.SetNewPrevHash{}
-
-	if err := m.Decode(b); err != nil {
-		t.Logf("%+v", m)
+	frame := stratumv2.Frame{}
+	msg := stratumv2.SetNewPrevHash{}
+	if err := frame.Decode(shouldBe); err != nil {
+		t.Logf("%+v", frame)
 		t.Fatal(err.Error())
 	}
-	t.Logf("%+v", m)
+	if frame.MessageType != stratumv2.MessageSetNewPrevHash {
+		t.Fatal("message type mismatch")
+	}
+	if err := msg.Decode(frame.Payload); err != nil {
+		t.Logf("%+v", msg)
+		t.Fatal(err.Error())
+	}
+
+	/// enc
+	bb, err := msg.Encode()
+	if err != nil {
+		t.Fatal(err.Error())
+	}
+	compareFrameWithExpected(t, stratumv2.ExtensionTypeCore, frame.MessageType, bb, shouldBe)
 }
