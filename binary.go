@@ -46,9 +46,13 @@ func (bb *BinaryBuilder) Bytes() ([]byte, error) {
 	}
 	return bb.data, nil
 }
+
+// Len returns the length of the backing slice.
 func (bb *BinaryBuilder) Len() int {
 	return len(bb.data)
 }
+
+// Cap returns the capacity of the backing slice.
 func (bb *BinaryBuilder) Cap() int {
 	return cap(bb.data)
 }
@@ -189,18 +193,13 @@ func (bb *BinaryBuilder) AddBin16M(s []byte) *BinaryBuilder {
 
 // TODO: use mac
 func (bb *BinaryBuilder) AddMAC(mac [16]byte) *BinaryBuilder {
-	if bb.err != nil {
-		return bb
-	}
-	bb.data = append(bb.data, mac[:]...)
-	return bb
+	return bb.AddBytes(mac[:])
 }
-func (bb *BinaryBuilder) AddPubkey(pubkey [32]byte) *BinaryBuilder {
-	if bb.err != nil {
-		return bb
-	}
-	bb.data = append(bb.data, pubkey[:]...)
-	return bb
+func (bb *BinaryBuilder) AddPubkey(pubkey Pubkey) *BinaryBuilder {
+	return bb.AddBytes(pubkey[:])
+}
+func (bb *BinaryBuilder) AddEllswiftPubkey(pubkey EllswiftPubkey) *BinaryBuilder {
+	return bb.AddBytes(pubkey[:])
 }
 func (bb *BinaryBuilder) AddSignature(sig [32]byte) *BinaryBuilder {
 	if bb.err != nil {
