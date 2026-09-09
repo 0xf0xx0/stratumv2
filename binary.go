@@ -13,7 +13,7 @@ const (
 
 // BinaryBuilder provides helpers for encoding Stratum V2 datatypes.
 //
-// inspired by txscript.ScriptBuilder from btcd, and strings.StringBuilder
+// inspired by [github.com/btcsuite/btcd/txscript.ScriptBuilder], and [strings.StringBuilder]
 type BinaryBuilder struct {
 	data []byte
 	err  error

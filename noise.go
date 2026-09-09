@@ -18,6 +18,7 @@ import (
 	"golang.org/x/crypto/chacha20poly1305"
 )
 
+// guhhhhhhhhhhhhhhhhhhhhhhhhhhh
 type SIGNATURE_NOISE_MESSAGE struct {
 	Version       uint16 // Version of the certificate format
 	ValidFrom     uint32 // Validity start time (unix timestamp)
@@ -84,11 +85,12 @@ type HandshakeState struct {
 	ck [32]byte // chaining key. Accumulated hash of all previous ECDH outputs. At the end of the handshake `ck` is used to derive encryption key `k`.
 }
 
-func (hs *HandshakeState) AuthServerCertificate(cert *SIGNATURE_NOISE_MESSAGE, staticPubkey []byte, authorityPubkey [32]byte) (bool, error) {
+// AuthServerCertificate is a wrapper around [VerifyServerCertificate].
+func (hs *HandshakeState) AuthServerCertificate(cert *SIGNATURE_NOISE_MESSAGE, authorityPubkey, staticPubkey Pubkey) (bool, error) {
 	return VerifyServerCertificate(cert, authorityPubkey, staticPubkey)
 }
 
-func VerifyServerCertificate(cert *SIGNATURE_NOISE_MESSAGE, authorityPubkey [32]byte, staticPubkey []byte) (bool, error) {
+func VerifyServerCertificate(cert *SIGNATURE_NOISE_MESSAGE, authorityPubkey, staticPubkey Pubkey) (bool, error) {
 	now := time.Now()
 	if cert.Version != CertificateFormatVersion {
 		return false, errors.New("unsupported certificate format version")
@@ -117,11 +119,13 @@ func VerifyServerCertificate(cert *SIGNATURE_NOISE_MESSAGE, authorityPubkey [32]
 		return false, err
 	}
 
-	buf = append(buf, staticPubkey...)
+	buf = append(buf, staticPubkey[:]...)
 	hash := sha256.Sum256(buf)
 	return sig.Verify(hash[:], pub), nil
 }
-func (hs *HandshakeState) PerformHandshakeInitiator(rw io.ReadWriter, authorityPubkey [32]byte) (send, recv *CipherState, err error) {
+
+// PerformHandshakeInitiator initiates a handshake with a remote party.
+func (hs *HandshakeState) PerformHandshakeInitiator(rw io.ReadWriter, authorityPubkey Pubkey) (send, recv *CipherState, err error) {
 	send = &CipherState{}
 	recv = &CipherState{}
 
@@ -167,7 +171,7 @@ func (hs *HandshakeState) PerformHandshakeInitiator(rw io.ReadWriter, authorityP
 	// println(fmt.Sprintf("[Initiatior] got es: %x", encryptedStatic))
 	// println(fmt.Sprintf("[Initiatior] After MixHash(se): h=%x", hs.h))
 
-	sharedeeDH := hs.ecdh(ephemeral, [64]byte(remoteEphemeral), true)
+	sharedeeDH := hs.ecdh(ephemeral, EllswiftPubkey(remoteEphemeral), true)
 	// println(fmt.Sprintf("[Initiatior] ee DH shared secret: %x", sharedeeDH))
 	hs.mixKey(sharedeeDH)
 
@@ -180,7 +184,7 @@ func (hs *HandshakeState) PerformHandshakeInitiator(rw io.ReadWriter, authorityP
 
 	// println(fmt.Sprintf("[Initiatior] decrypted se: %x", plainStatic))
 
-	sharedesDH := hs.ecdh(ephemeral, [64]byte(plainStatic), true)
+	sharedesDH := hs.ecdh(ephemeral, EllswiftPubkey(plainStatic), true)
 	// println(fmt.Sprintf("[Initiatior] es DH shared secret: %x", sharedesDH))
 	hs.mixKey(sharedesDH)
 	// println(fmt.Sprintf("[Initiatior] After MixKey(es): ck=%x", hs.ck))
@@ -206,7 +210,10 @@ func (hs *HandshakeState) PerformHandshakeInitiator(rw io.ReadWriter, authorityP
 	recv.InitializeKey([32]byte(temp_k2))
 	return send, recv, nil
 }
-func (hs *HandshakeState) PerformHandshakeResponder(rw io.ReadWriter, cert *SIGNATURE_NOISE_MESSAGE, staticKeys *Keypair) (recv, send *CipherState, err error) {
+
+// PerformHandshakeResponder responds to a handshake initiated by a remote party.
+// NOTE: remember to sign signedCert!
+func (hs *HandshakeState) PerformHandshakeResponder(rw io.ReadWriter, signedCert *SIGNATURE_NOISE_MESSAGE, staticKeys *Keypair) (recv, send *CipherState, err error) {
 	recv = &CipherState{}
 	send = &CipherState{}
 
@@ -241,7 +248,7 @@ func (hs *HandshakeState) PerformHandshakeResponder(rw io.ReadWriter, cert *SIGN
 	hs.mixHash(ephemeral.SerializeEllswiftBytes())
 	// println(fmt.Sprintf("[Responder] After MixHash(se): h=%x", hs.h))
 
-	sharedeeDH := hs.ecdh(ephemeral, [64]byte(remoteEphemeral), false)
+	sharedeeDH := hs.ecdh(ephemeral, EllswiftPubkey(remoteEphemeral), false)
 	// println(fmt.Sprintf("[Responder] ee DH shared secret: %x", sharedeeDH))
 	hs.mixKey(sharedeeDH)
 	// println(fmt.Sprintf("[Responder] After MixKey(ee): ck=%x", hs.ck))
@@ -252,13 +259,13 @@ func (hs *HandshakeState) PerformHandshakeResponder(rw io.ReadWriter, cert *SIGN
 	out.Write(hs.encryptAndHash(staticKeys.SerializeEllswiftBytes()))
 	// println(fmt.Sprintf("[Responder] Encrypted static (%d bytes): %x", len(x), x))
 
-	sharedesDH := hs.ecdh(staticKeys, [64]byte(remoteEphemeral), false)
+	sharedesDH := hs.ecdh(staticKeys, EllswiftPubkey(remoteEphemeral), false)
 	// println(fmt.Sprintf("[Responder] es DH shared secret (responder): %x", sharedesDH))
 
 	hs.mixKey(sharedesDH)
 	// println(fmt.Sprintf("[Responder] After MixKey(es): ck=%x", hs.ck))
 
-	certBytes, err := cert.Encode()
+	certBytes, err := signedCert.Encode()
 	if err != nil {
 		return nil, nil, err
 	}
@@ -314,7 +321,7 @@ func (hs *HandshakeState) mixKey(inputKeyMaterial []byte) {
 	hs.cs.InitializeKey([32]byte(temp))
 }
 func (hs *HandshakeState) ecdh(k *Keypair, remoteKey EllswiftPubkey, initiator bool) []byte {
-	hash, err := ellswift.V2Ecdh(k.Private, remoteKey, [64]byte(k.SerializeEllswift()), initiator)
+	hash, err := ellswift.V2Ecdh(k.Private, remoteKey, k.SerializeEllswift(), initiator)
 	if err != nil {
 		panic(err)
 	}

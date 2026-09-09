@@ -42,15 +42,15 @@ func TestBase58Check(t *testing.T) {
 
 func TestCerts(t *testing.T) {
 	authority := stratumv2.GenerateKeypair()
-	staticPub := make([]byte, 32)
-	crand.Read(staticPub)
+	staticPub := stratumv2.Pubkey{}
+	crand.Read(staticPub[:])
 	now := uint32(time.Now().Unix())
-	cert, err := stratumv2.NewAuthoritySignature(authority.Private, stratumv2.Pubkey(staticPub), 0, now+3600)
+	cert, err := stratumv2.NewAuthoritySignature(authority.Private, staticPub, 0, now+3600)
 	if err != nil {
 		t.Errorf("expected no error, got %v", err)
 	}
 
-	ok, err := stratumv2.VerifyServerCertificate(cert, [32]byte(authority.PublicKeyBytes()), staticPub)
+	ok, err := stratumv2.VerifyServerCertificate(cert, authority.PublicKey(), staticPub)
 	if err != nil {
 		t.Errorf("expected no error, got %v", err)
 	}
@@ -60,7 +60,7 @@ func TestCerts(t *testing.T) {
 
 	/// verify failure
 	badKey := stratumv2.GenerateKeypair()
-	ok, err = stratumv2.VerifyServerCertificate(cert, [32]byte(badKey.PublicKeyBytes()), staticPub)
+	ok, err = stratumv2.VerifyServerCertificate(cert, badKey.PublicKey(), staticPub)
 	if err != nil {
 		t.Errorf("expected no error, got %v", err)
 	}
@@ -243,7 +243,7 @@ func TestHandshake(t *testing.T) {
 	var srvSend, srvRecv, clientSend, clientRecv *stratumv2.CipherState
 	wg.Go(func() {
 		var err error
-		clientSend, clientRecv, err = cliPaw.PerformHandshakeInitiator(rpipe, [32]byte(authority.PublicKeyBytes()))
+		clientSend, clientRecv, err = cliPaw.PerformHandshakeInitiator(rpipe, authority.PublicKey())
 		if err != nil {
 			t.Errorf("expected no error, got %v", err)
 			return
