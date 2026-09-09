@@ -28,7 +28,7 @@ func TestNewExtendedMiningJob(t *testing.T) {
 	if err != nil {
 		t.Fatal(err.Error())
 	}
-	compareFrameWithExpected(t, stratumv2.ExtensionTypeCore, frame.MessageType, bb, shouldBe)
+	compareFrameWithExpected(t, frame.ExtensionType, frame.MessageType, bb, shouldBe)
 }
 
 func TestSubmitSharesExtended(t *testing.T) {
@@ -52,7 +52,7 @@ func TestSubmitSharesExtended(t *testing.T) {
 	if err != nil {
 		t.Fatal(err.Error())
 	}
-	compareFrameWithExpected(t, stratumv2.ExtensionTypeCore, frame.MessageType, bb, shouldBe)
+	compareFrameWithExpected(t, frame.ExtensionType, frame.MessageType, bb, shouldBe)
 }
 
 func TestSubmitSharesSuccess(t *testing.T) {
@@ -77,7 +77,7 @@ func TestSubmitSharesSuccess(t *testing.T) {
 	if err != nil {
 		t.Fatal(err.Error())
 	}
-	compareFrameWithExpected(t, stratumv2.ExtensionTypeCore, frame.MessageType, bb, shouldBe)
+	compareFrameWithExpected(t, frame.ExtensionType, frame.MessageType, bb, shouldBe)
 }
 
 func TestSetTarget(t *testing.T) {
@@ -102,7 +102,7 @@ func TestSetTarget(t *testing.T) {
 	if err != nil {
 		t.Fatal(err.Error())
 	}
-	compareFrameWithExpected(t, stratumv2.ExtensionTypeCore, frame.MessageType, bb, shouldBe)
+	compareFrameWithExpected(t, frame.ExtensionType, frame.MessageType, bb, shouldBe)
 }
 
 func TestSetNewPrevHash(t *testing.T) {
@@ -127,5 +127,5 @@ func TestSetNewPrevHash(t *testing.T) {
 	if err != nil {
 		t.Fatal(err.Error())
 	}
-	compareFrameWithExpected(t, stratumv2.ExtensionTypeCore, frame.MessageType, bb, shouldBe)
+	compareFrameWithExpected(t, frame.ExtensionType, frame.MessageType, bb, shouldBe)
 }

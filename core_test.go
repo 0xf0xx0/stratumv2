@@ -28,7 +28,7 @@ func TestSetupConnectionEncDec(t *testing.T) {
 	if err != nil {
 		t.Fatal(err.Error())
 	}
-	compareFrameWithExpected(t, stratumv2.ExtensionTypeCore, frame.MessageType, bb, shouldBe)
+	compareFrameWithExpected(t, frame.ExtensionType, frame.MessageType, bb, shouldBe)
 }
 func TestSetupConnectionSuccessEncDec(t *testing.T) {
 	shouldBe := hexDec("000001060000020000000000")
@@ -51,7 +51,7 @@ func TestSetupConnectionSuccessEncDec(t *testing.T) {
 	if err != nil {
 		t.Fatal(err.Error())
 	}
-	compareFrameWithExpected(t, stratumv2.ExtensionTypeCore, frame.MessageType, bb, shouldBe)
+	compareFrameWithExpected(t, frame.ExtensionType, frame.MessageType, bb, shouldBe)
 }
 
 func TestOpenExtendedMiningChannelEncDec(t *testing.T) {
@@ -76,7 +76,7 @@ func TestOpenExtendedMiningChannelEncDec(t *testing.T) {
 		t.Fatal(err.Error())
 	}
 	t.Logf("%+v", msg)
-	compareFrameWithExpected(t, stratumv2.ExtensionTypeCore, frame.MessageType, bb, shouldBe)
+	compareFrameWithExpected(t, frame.ExtensionType, frame.MessageType, bb, shouldBe)
 }
 func TestOpenExtendedMiningChannelSuccessEncDec(t *testing.T) {
 	shouldBe := hexDec("00001433000001000000b0190b950726db55f99494d9693ad7079cbab4bf336c9c7524ef963b0817190000000000030004950b19b000000000")
@@ -99,7 +99,7 @@ func TestOpenExtendedMiningChannelSuccessEncDec(t *testing.T) {
 	if err != nil {
 		t.Fatal(err.Error())
 	}
-	compareFrameWithExpected(t, stratumv2.ExtensionTypeCore, frame.MessageType, bb, shouldBe)
+	compareFrameWithExpected(t, frame.ExtensionType, frame.MessageType, bb, shouldBe)
 }
 
 func compareFrameWithExpected(t *testing.T, ExtensionType stratumv2.Extension, MessageType stratumv2.MessageType, bb, shouldBe []byte) {
@@ -116,7 +116,6 @@ func compareFrameWithExpected(t *testing.T, ExtensionType stratumv2.Extension, M
 	if !bytes.Equal(shouldBe, fb) {
 		t.Logf("%x", shouldBe)
 		t.Logf("%x", fb)
-		t.Logf("%d", len(bb))
 		t.Fatal("encoded frame does not match original")
 	}
 }
