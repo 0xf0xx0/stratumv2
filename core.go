@@ -3,6 +3,7 @@ package stratumv2
 import (
 	"errors"
 	"io"
+	"slices"
 )
 
 const (
@@ -41,6 +42,19 @@ func (f *Frame) Encode() ([]byte, error) {
 	/// FIXME: properly encode tlvs
 	if f.TLVs != nil {
 		tlvOut := NewBinaryBuilder()
+		/// "TLV fields MUST be ordered by extension_type.
+		///  Since all extensions are negotiated beforehand,
+		///  the recipient MUST process TLV fields in order of
+		//   extension_type and use their Type identifiers to correctly interpret them.
+		slices.SortStableFunc(f.TLVs, func(i, j TLV) int {
+			if i.ExtensionType > j.ExtensionType {
+				return 1
+			}
+			if i.ExtensionType < j.ExtensionType {
+				return -1
+			}
+			return 0
+		})
 		for _, tlv := range f.TLVs {
 			enc, err := tlv.Encode()
 			if err != nil {

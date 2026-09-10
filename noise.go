@@ -143,6 +143,7 @@ func (hs *HandshakeState) PerformHandshakeInitiator(rw io.ReadWriter, authorityP
 	/// 4.5.1.1
 	/// "initializes empty output buffer"
 	out := bytes.Buffer{}
+	out.Grow(64)
 	/// "generates ephemeral keypair e, appends e.public_key.serializeEllSwift() to the buffer (64 bytes plaintext EllSwift encoded public key)"
 	ephemeral := GenerateKeypair()
 	// println(fmt.Sprintf("[Initiatior] ellswift: %x", ephemeral.SerializeEllswift()))
@@ -213,6 +214,7 @@ func (hs *HandshakeState) PerformHandshakeInitiator(rw io.ReadWriter, authorityP
 
 // PerformHandshakeResponder responds to a handshake initiated by a remote party.
 // NOTE: remember to sign signedCert!
+// [NewAuthoritySignature] is this packages helper
 func (hs *HandshakeState) PerformHandshakeResponder(rw io.ReadWriter, signedCert *SIGNATURE_NOISE_MESSAGE, staticKeys *Keypair) (recv, send *CipherState, err error) {
 	recv = &CipherState{}
 	send = &CipherState{}
@@ -241,6 +243,7 @@ func (hs *HandshakeState) PerformHandshakeResponder(rw io.ReadWriter, signedCert
 	/// 4.5.2 Handshake Act 2: NX-handshake part 2
 	/// 4.5.2.1
 	out := bytes.Buffer{}
+	out.Grow(234) /// length of pt 2
 	ephemeral := GenerateKeypair()
 	// println(fmt.Sprintf("[Responder] se: %x", ephemeral.SerializeEllswift()))
 	out.Write(ephemeral.SerializeEllswiftBytes())
