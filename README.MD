@@ -9,7 +9,6 @@ https://stratumprotocol.org/
 - mining protocol
 
 # TODO
-- implement saving/loading of Keypair
 - properly implement TLVs
 - implement all protocols
     - jobs

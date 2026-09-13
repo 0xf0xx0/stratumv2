@@ -67,10 +67,6 @@ func (kp *Keypair) SerializeEllswiftBytes() []byte {
 
 // PublicKeyBytes returns the public key as a byte array.
 func (kp *Keypair) PublicKeyBytes() []byte {
-	if kp.publicX != nil {
-		return kp.publicX
-	}
-	kp.publicX = kp.Public.X().FillBytes(make([]byte, 32))
 	return kp.publicX
 }
 
@@ -78,16 +74,33 @@ func (kp *Keypair) PublicKeyBytes() []byte {
 func (kp *Keypair) PublicKey() Pubkey {
 	return Pubkey(kp.PublicKeyBytes())
 }
-
-type HandshakeState struct {
-	cs *CipherState
-	h  [32]byte // handshake hash. Accumulated hash of all handshake data that has been sent and received so far during the handshake process
-	ck [32]byte // chaining key. Accumulated hash of all previous ECDH outputs. At the end of the handshake `ck` is used to derive encryption key `k`.
+func (kp *Keypair) Encode() ([]byte, error) {
+	return NewBinaryBuilder().Grow(96).
+		AddBytes(kp.Private.Serialize()).
+		AddBytes(kp.publicEllswift[:]).
+		Bytes()
+}
+func (kp *Keypair) Decode(b []byte) {
+	br := NewBinaryReader(b)
+	privkey := br.ReadBytes(32)
+	ellswift := br.ReadBytes(64)
+	kp.Private, kp.Public = btcec.PrivKeyFromBytes(privkey)
+	kp.publicX = kp.Public.X().FillBytes(make([]byte, 32))
+	kp.publicEllswift = EllswiftPubkey(ellswift)
 }
 
-// AuthServerCertificate is a wrapper around [VerifyServerCertificate].
-func (hs *HandshakeState) AuthServerCertificate(cert *SIGNATURE_NOISE_MESSAGE, authorityPubkey, staticPubkey Pubkey) (bool, error) {
-	return VerifyServerCertificate(cert, authorityPubkey, staticPubkey)
+type HandshakeState struct {
+	cs           *CipherState
+	h            [32]byte // handshake hash. Accumulated hash of all handshake data that has been sent and received so far during the handshake process
+	ck           [32]byte // chaining key. Accumulated hash of all previous ECDH outputs. At the end of the handshake `ck` is used to derive encryption key `k`.
+	cert         *SIGNATURE_NOISE_MESSAGE
+	remoteStatic Pubkey // used by the initiator for AuthServerCertificate
+}
+
+// VerifyServerCertificate is a wrapper around [VerifyServerCertificate].
+func (hs *HandshakeState) VerifyServerCertificate(cert *SIGNATURE_NOISE_MESSAGE, authorityPubkey Pubkey) (bool, error) {
+	/// TODO: get X coord from static
+	return VerifyServerCertificate(cert, authorityPubkey, hs.remoteStatic)
 }
 
 func VerifyServerCertificate(cert *SIGNATURE_NOISE_MESSAGE, authorityPubkey, staticPubkey Pubkey) (bool, error) {
@@ -125,7 +138,7 @@ func VerifyServerCertificate(cert *SIGNATURE_NOISE_MESSAGE, authorityPubkey, sta
 }
 
 // PerformHandshakeInitiator initiates a handshake with a remote party.
-func (hs *HandshakeState) PerformHandshakeInitiator(rw io.ReadWriter, authorityPubkey Pubkey) (send, recv *CipherState, err error) {
+func (hs *HandshakeState) PerformHandshakeInitiator(rw io.ReadWriter, authorityPubkey Pubkey) (send, recv *CipherState, cert *SIGNATURE_NOISE_MESSAGE, err error) {
 	send = &CipherState{}
 	recv = &CipherState{}
 
@@ -179,8 +192,9 @@ func (hs *HandshakeState) PerformHandshakeInitiator(rw io.ReadWriter, authorityP
 	// println(fmt.Sprintf("[Initiatior] h=%x", hs.h))
 	plainStatic, err := hs.decryptAndHash(encryptedStatic)
 	if err != nil {
-		return nil, nil, err
+		return nil, nil, nil, err
 	}
+	hs.remoteStatic = Pubkey(plainStatic)
 	// println(fmt.Sprintf("[Initiatior] h=%x", hs.h))
 
 	// println(fmt.Sprintf("[Initiatior] decrypted se: %x", plainStatic))
@@ -194,13 +208,12 @@ func (hs *HandshakeState) PerformHandshakeInitiator(rw io.ReadWriter, authorityP
 	// fmt.Println(SerializeAuthorityKey(plainStatic))
 	plainCert, err := hs.decryptAndHash(encryptedCert)
 	if err != nil {
-		return nil, nil, err
+		return nil, nil, nil, err
 	}
-	cert := &SIGNATURE_NOISE_MESSAGE{}
-	/// TODO: return certificate for user validation
+	cert = &SIGNATURE_NOISE_MESSAGE{}
 	if err := cert.Decode(plainCert); err != nil {
 		println(len(encryptedCert))
-		return nil, nil, err
+		return nil, nil, nil, err
 	}
 	// println(fmt.Sprintf("[Initiatior] got cert: %+v", cert))
 
@@ -209,7 +222,7 @@ func (hs *HandshakeState) PerformHandshakeInitiator(rw io.ReadWriter, authorityP
 
 	send.InitializeKey([32]byte(temp_k1))
 	recv.InitializeKey([32]byte(temp_k2))
-	return send, recv, nil
+	return send, recv, cert, nil
 }
 
 // PerformHandshakeResponder responds to a handshake initiated by a remote party.
@@ -616,9 +629,11 @@ func handshakeInit() ([]byte, []byte) {
 func GenerateKeypair() *Keypair {
 	/// only error comes from crypto/rand Read, which never errors
 	priv, ellswiftPub, _ := ellswift.EllswiftCreate()
+	pub := priv.PubKey()
 	return &Keypair{
 		Private:        priv,
-		Public:         priv.PubKey(),
+		Public:         pub,
 		publicEllswift: ellswiftPub,
+		publicX:        pub.X().FillBytes(make([]byte, 32)),
 	}
 }

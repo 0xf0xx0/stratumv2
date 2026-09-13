@@ -76,7 +76,8 @@ func main() {
 		Payload:       openchanPayload,
 	}
 
-	cliPaw := &stratumv2.HandshakeState{}
+	/// connect
+	clientPaw := &stratumv2.HandshakeState{}
 	authorityPubkey, err := stratumv2.DeserializeAuthorityKey(authkey)
 	if err != nil {
 		panic(err)
@@ -87,22 +88,21 @@ func main() {
 		panic(err)
 	}
 
-	send, recv, err := cliPaw.PerformHandshakeInitiator(conn, [32]byte(authorityPubkey))
+	send, recv, cert, err := clientPaw.PerformHandshakeInitiator(conn, [32]byte(authorityPubkey))
 	if err != nil {
 		panic(err)
 	}
-	_ = recv
-	_ = send
 
-	// conn.Write([]byte("random bullshit go"))
-	setupBytes, err := send.EncryptFrame(setupFrame)
+	valid, err := clientPaw.VerifyServerCertificate(cert, stratumv2.Pubkey(authorityPubkey))
 	if err != nil {
 		panic(err)
 	}
-	// fmt.Printf("%+v\n", setupmsg)
-	// fmt.Printf("%+v\n", setupFrame)
-	fmt.Printf("TX: %x\n", setupBytes)
-	conn.Write(setupBytes)
+	if !valid {
+		println("cert validation failed!")
+		return
+	}
+	println("cert validation success!")
+
 	go func() {
 		for {
 			frame, err := recv.DecryptFrameFromReader(conn)
@@ -118,6 +118,15 @@ func main() {
 			}
 		}
 	}()
+
+	setupBytes, err := send.EncryptFrame(setupFrame)
+	if err != nil {
+		panic(err)
+	}
+	// fmt.Printf("%+v\n", setupmsg)
+	// fmt.Printf("%+v\n", setupFrame)
+	fmt.Printf("TX: %x\n", setupBytes)
+	conn.Write(setupBytes)
 
 	openchanBytes, err := send.EncryptFrame(openchanFrame)
 	if err != nil {

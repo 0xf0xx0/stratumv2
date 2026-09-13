@@ -14,6 +14,23 @@ import (
 	"git.0xf0xx0.eth.limo/0xf0xx0/stratumv2"
 )
 
+func TestKeypairEncDec(t *testing.T) {
+	kp := stratumv2.GenerateKeypair()
+	encoded, err := kp.Encode()
+	if err != nil {
+		t.Errorf("expected no error, got %v", err)
+	}
+	decoded := &stratumv2.Keypair{}
+	decoded.Decode(encoded)
+	if !bytes.Equal(decoded.PublicKeyBytes(), kp.PublicKeyBytes()) {
+		t.Errorf("expected %x, got %x", kp.PublicKeyBytes(), decoded.PublicKeyBytes())
+	}
+	if !bytes.Equal(decoded.SerializeEllswiftBytes(), kp.SerializeEllswiftBytes()) {
+		t.Errorf("expected %x, got %x", kp.SerializeEllswiftBytes(), decoded.SerializeEllswiftBytes())
+	}
+
+}
+
 func TestBase58Check(t *testing.T) {
 	raw_ca_public_key := []byte{
 		118, 99, 112, 0, 151, 156,
@@ -243,7 +260,7 @@ func TestHandshake(t *testing.T) {
 	var srvSend, srvRecv, clientSend, clientRecv *stratumv2.CipherState
 	wg.Go(func() {
 		var err error
-		clientSend, clientRecv, err = cliPaw.PerformHandshakeInitiator(rpipe, authority.PublicKey())
+		clientSend, clientRecv, _, err = cliPaw.PerformHandshakeInitiator(rpipe, authority.PublicKey())
 		if err != nil {
 			t.Errorf("expected no error, got %v", err)
 			return
