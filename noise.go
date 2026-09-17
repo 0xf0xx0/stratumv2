@@ -138,7 +138,7 @@ func VerifyServerCertificate(cert *SIGNATURE_NOISE_MESSAGE, authorityPubkey, sta
 }
 
 // PerformHandshakeInitiator initiates a handshake with a remote party.
-func (hs *HandshakeState) PerformHandshakeInitiator(rw io.ReadWriter, authorityPubkey Pubkey) (send, recv *CipherState, cert *SIGNATURE_NOISE_MESSAGE, err error) {
+func (hs *HandshakeState) PerformHandshakeInitiator(rw io.ReadWriter) (send, recv *CipherState, cert *SIGNATURE_NOISE_MESSAGE, err error) {
 	send = &CipherState{}
 	recv = &CipherState{}
 
@@ -158,7 +158,7 @@ func (hs *HandshakeState) PerformHandshakeInitiator(rw io.ReadWriter, authorityP
 	out := bytes.Buffer{}
 	out.Grow(64)
 	/// "generates ephemeral keypair e, appends e.public_key.serializeEllSwift() to the buffer (64 bytes plaintext EllSwift encoded public key)"
-	ephemeral := GenerateKeypair()
+	ephemeral := NewKeypair()
 	// println(fmt.Sprintf("[Initiatior] ellswift: %x", ephemeral.SerializeEllswift()))
 	out.Write(ephemeral.SerializeEllswiftBytes())
 
@@ -257,7 +257,7 @@ func (hs *HandshakeState) PerformHandshakeResponder(rw io.ReadWriter, signedCert
 	/// 4.5.2.1
 	out := bytes.Buffer{}
 	out.Grow(234) /// length of pt 2
-	ephemeral := GenerateKeypair()
+	ephemeral := NewKeypair()
 	// println(fmt.Sprintf("[Responder] se: %x", ephemeral.SerializeEllswift()))
 	out.Write(ephemeral.SerializeEllswiftBytes())
 
@@ -455,7 +455,7 @@ func (cs *CipherState) EncryptFrameToWriter(frame Frame, w io.Writer) (int, erro
 	return w.Write(append(header, payload...))
 }
 
-// DecryptFrameFromReader decrypts a [Frame] from a byte array.
+// DecryptFrame decrypts a [Frame] from a byte array.
 func (cs *CipherState) DecryptFrame(f []byte) (Frame, error) {
 	r := NewBinaryReader(f)
 	frame := Frame{}
@@ -626,7 +626,7 @@ func handshakeInit() ([]byte, []byte) {
 }
 
 // generates and returns a fresh secp256k1 [Keypair]
-func GenerateKeypair() *Keypair {
+func NewKeypair() *Keypair {
 	/// only error comes from crypto/rand Read, which never errors
 	priv, ellswiftPub, _ := ellswift.EllswiftCreate()
 	pub := priv.PubKey()

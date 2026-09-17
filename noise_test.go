@@ -15,7 +15,7 @@ import (
 )
 
 func TestKeypairEncDec(t *testing.T) {
-	kp := stratumv2.GenerateKeypair()
+	kp := stratumv2.NewKeypair()
 	encoded, err := kp.Encode()
 	if err != nil {
 		t.Errorf("expected no error, got %v", err)
@@ -58,7 +58,7 @@ func TestBase58Check(t *testing.T) {
 }
 
 func TestCerts(t *testing.T) {
-	authority := stratumv2.GenerateKeypair()
+	authority := stratumv2.NewKeypair()
 	staticPub := stratumv2.Pubkey{}
 	crand.Read(staticPub[:])
 	now := uint32(time.Now().Unix())
@@ -76,7 +76,7 @@ func TestCerts(t *testing.T) {
 	}
 
 	/// verify failure
-	badKey := stratumv2.GenerateKeypair()
+	badKey := stratumv2.NewKeypair()
 	ok, err = stratumv2.VerifyServerCertificate(cert, badKey.PublicKey(), staticPub)
 	if err != nil {
 		t.Errorf("expected no error, got %v", err)
@@ -243,8 +243,8 @@ func TestHandshake(t *testing.T) {
 		MessageLength: stratumv2.U24(len(setupPayload)),
 		Payload:       setupPayload,
 	}
-	authority := stratumv2.GenerateKeypair()
-	static := stratumv2.GenerateKeypair()
+	authority := stratumv2.NewKeypair()
+	static := stratumv2.NewKeypair()
 
 	cert, err := stratumv2.NewAuthoritySignature(authority.Private, stratumv2.Pubkey(static.PublicKeyBytes()), 20, uint32(time.Now().Unix())+3600)
 	if err != nil {
@@ -260,11 +260,13 @@ func TestHandshake(t *testing.T) {
 	var srvSend, srvRecv, clientSend, clientRecv *stratumv2.CipherState
 	wg.Go(func() {
 		var err error
+		// var srvCert *stratumv2.SIGNATURE_NOISE_MESSAGE
 		clientSend, clientRecv, _, err = cliPaw.PerformHandshakeInitiator(rpipe, authority.PublicKey())
 		if err != nil {
 			t.Errorf("expected no error, got %v", err)
 			return
 		}
+		// cliPaw.VerifyServerCertificate(srvCert, )
 	})
 	wg.Go(func() {
 		var err error
