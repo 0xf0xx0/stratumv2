@@ -239,7 +239,7 @@ func TestCertVerification(t *testing.T) {
 	}
 }
 
-func TestHandshake(t *testing.T) {
+func TestFullHandshake(t *testing.T) {
 	setupmsg := stratumv2.SetupConnection{
 		Protocol:              stratumv2.MiningProtocol,
 		MinVersion:            stratumv2.ProtocolVersion,
@@ -276,9 +276,11 @@ func TestHandshake(t *testing.T) {
 
 	data := []byte("/pogolo/")
 	var srvSend, srvRecv, clientSend, clientRecv *stratumv2.CipherState
+
+	/// start "server" and "client"
+
 	wg.Go(func() {
 		var err error
-		// var srvCert *stratumv2.SIGNATURE_NOISE_MESSAGE
 		clientSend, clientRecv, err = cliPaw.PerformHandshakeInitiator(rpipe)
 		if err != nil {
 			t.Errorf("expected no error, got %v", err)
@@ -304,6 +306,8 @@ func TestHandshake(t *testing.T) {
 	})
 	wg.Wait()
 
+	/// test encrypt/dec on both sides
+
 	for range 5 {
 		enc, _ := srvSend.Encrypt(data)
 		if len(enc) != len(data)+stratumv2.MacLen {
@@ -318,9 +322,27 @@ func TestHandshake(t *testing.T) {
 			return
 		}
 		if string(dec) != string(data) {
+			t.Errorf("mismatch in decrypted data: expected %q, got %q", data, dec)
+		}
+
+		enc, _ = clientRecv.Encrypt(data)
+		if len(enc) != len(data)+stratumv2.MacLen {
+			t.Errorf("encrypted text len isnt expected")
+			return
+		}
+
+		t.Logf("sending: %x (%d bytes)", enc, len(enc))
+		dec, err = srvRecv.Decrypt(enc)
+		if err != nil {
+			t.Errorf("expected no error, got %v", err)
+			return
+		}
+		if string(dec) != string(data) {
 			t.Errorf("mismatch inb decrypted data: expected %q, got %q", data, dec)
 		}
 	}
+
+	/// and test full frame enc/dec
 
 	enc, err := clientRecv.EncryptFrame(setupFrame)
 	if err != nil {
