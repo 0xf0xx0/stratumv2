@@ -88,12 +88,12 @@ func main() {
 		panic(err)
 	}
 
-	send, recv, cert, err := clientPaw.PerformHandshakeInitiator(conn, [32]byte(authorityPubkey))
+	send, recv, err := clientPaw.PerformHandshakeInitiator(conn)
 	if err != nil {
 		panic(err)
 	}
 
-	valid, err := clientPaw.VerifyServerCertificate(cert, stratumv2.Pubkey(authorityPubkey))
+	valid, err := clientPaw.VerifyServerCertificate(stratumv2.Pubkey(authorityPubkey))
 	if err != nil {
 		panic(err)
 	}

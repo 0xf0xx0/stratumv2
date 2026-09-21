@@ -221,6 +221,24 @@ func TestCipherState(t *testing.T) {
 
 }
 
+func TestCertVerification(t *testing.T) {
+	authority := stratumv2.NewKeypair()
+	static := stratumv2.NewKeypair()
+
+	cert, err := stratumv2.NewAuthoritySignature(authority.Private, static.PublicKey(), 20, uint32(time.Now().Unix())+3600)
+	if err != nil {
+		t.Errorf("expected no error, got %v", err)
+	}
+
+	ok, err := stratumv2.VerifyServerCertificate(cert, authority.PublicKey(), static.PublicKey())
+	if err != nil {
+		t.Errorf("expected no error, got %v", err)
+	}
+	if !ok {
+		t.Errorf("expected certificate to be verified")
+	}
+}
+
 func TestHandshake(t *testing.T) {
 	setupmsg := stratumv2.SetupConnection{
 		Protocol:              stratumv2.MiningProtocol,
@@ -246,7 +264,7 @@ func TestHandshake(t *testing.T) {
 	authority := stratumv2.NewKeypair()
 	static := stratumv2.NewKeypair()
 
-	cert, err := stratumv2.NewAuthoritySignature(authority.Private, stratumv2.Pubkey(static.PublicKeyBytes()), 20, uint32(time.Now().Unix())+3600)
+	cert, err := stratumv2.NewAuthoritySignature(authority.Private, static.PublicKey(), 20, uint32(time.Now().Unix())+3600)
 	if err != nil {
 		t.Errorf("expected no error, got %v", err)
 	}
@@ -261,12 +279,20 @@ func TestHandshake(t *testing.T) {
 	wg.Go(func() {
 		var err error
 		// var srvCert *stratumv2.SIGNATURE_NOISE_MESSAGE
-		clientSend, clientRecv, _, err = cliPaw.PerformHandshakeInitiator(rpipe, authority.PublicKey())
+		clientSend, clientRecv, err = cliPaw.PerformHandshakeInitiator(rpipe)
 		if err != nil {
 			t.Errorf("expected no error, got %v", err)
 			return
 		}
-		// cliPaw.VerifyServerCertificate(srvCert, )
+		ok, err := cliPaw.VerifyServerCertificate(authority.PublicKey())
+		if err != nil {
+			t.Errorf("expected no error, got %v", err)
+			return
+		}
+		if !ok {
+			t.Error("server auth failed :C")
+			return
+		}
 	})
 	wg.Go(func() {
 		var err error

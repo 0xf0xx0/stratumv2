@@ -46,6 +46,14 @@ func (m *SIGNATURE_NOISE_MESSAGE) Encode() ([]byte, error) {
 		AddBytes(m.Signature).
 		Bytes()
 }
+func (m *SIGNATURE_NOISE_MESSAGE) EncodeNoSig() ([]byte, error) {
+	return NewBinaryBuilder().
+		Grow(10).
+		AddU16(m.Version).
+		AddU32(m.ValidFrom).
+		AddU32(m.NotValidAfter).
+		Bytes()
+}
 
 // Keypair stores a secp256k1 key and its ElligatorSwift-encoded public key.
 type Keypair struct {
@@ -89,18 +97,28 @@ func (kp *Keypair) Decode(b []byte) {
 	kp.publicEllswift = EllswiftPubkey(ellswift)
 }
 
+// HandshakeState provides methods to initiate and receive handshakes.
 type HandshakeState struct {
 	cs           *CipherState
 	h            [32]byte // handshake hash. Accumulated hash of all handshake data that has been sent and received so far during the handshake process
 	ck           [32]byte // chaining key. Accumulated hash of all previous ECDH outputs. At the end of the handshake `ck` is used to derive encryption key `k`.
 	cert         *SIGNATURE_NOISE_MESSAGE
-	remoteStatic Pubkey // used by the initiator for AuthServerCertificate
+	serverStatic EllswiftPubkey // used by the initiator for AuthServerCertificate
 }
 
 // VerifyServerCertificate is a wrapper around [VerifyServerCertificate].
-func (hs *HandshakeState) VerifyServerCertificate(cert *SIGNATURE_NOISE_MESSAGE, authorityPubkey Pubkey) (bool, error) {
+func (hs *HandshakeState) VerifyServerCertificate(authorityPubkey Pubkey) (bool, error) {
 	/// TODO: get X coord from static
-	return VerifyServerCertificate(cert, authorityPubkey, hs.remoteStatic)
+	u := &btcec.FieldVal{}
+	t := &btcec.FieldVal{}
+	u.SetByteSlice(hs.serverStatic[:32])
+	t.SetByteSlice(hs.serverStatic[32:])
+	serverStaticX, err := ellswift.XSwiftEC(u, t)
+	if err != nil {
+		return false, err
+	}
+	// return VerifyServerCertificate(hs.cert, authorityPubkey, hs.serverStatic)
+	return VerifyServerCertificate(hs.cert, authorityPubkey, *serverStaticX.Normalize().Bytes())
 }
 
 func VerifyServerCertificate(cert *SIGNATURE_NOISE_MESSAGE, authorityPubkey, staticPubkey Pubkey) (bool, error) {
@@ -114,16 +132,11 @@ func VerifyServerCertificate(cert *SIGNATURE_NOISE_MESSAGE, authorityPubkey, sta
 	if cert.NotValidAfter < uint32(now.Unix()) {
 		return false, errors.New("certificate has expired")
 	}
-
-	sigBytes := cert.Signature[:]
-	cert.Signature = nil
-
-	buf, err := cert.Encode()
+	buf, err := cert.EncodeNoSig()
 	if err != nil {
 		return false, err
 	}
-	cert.Signature = sigBytes
-	sig, err := schnorr.ParseSignature(sigBytes)
+	sig, err := schnorr.ParseSignature(cert.Signature)
 	if err != nil {
 		return false, err
 	}
@@ -138,7 +151,7 @@ func VerifyServerCertificate(cert *SIGNATURE_NOISE_MESSAGE, authorityPubkey, sta
 }
 
 // PerformHandshakeInitiator initiates a handshake with a remote party.
-func (hs *HandshakeState) PerformHandshakeInitiator(rw io.ReadWriter) (send, recv *CipherState, cert *SIGNATURE_NOISE_MESSAGE, err error) {
+func (hs *HandshakeState) PerformHandshakeInitiator(rw io.ReadWriter) (send, recv *CipherState, err error) {
 	send = &CipherState{}
 	recv = &CipherState{}
 
@@ -165,8 +178,8 @@ func (hs *HandshakeState) PerformHandshakeInitiator(rw io.ReadWriter) (send, rec
 	/// "calls MixHash(e.public_key)"
 	hs.mixHash(ephemeral.SerializeEllswiftBytes())
 	// println(fmt.Sprintf("[Initiatior] After MixHash(e): h=%x", hs.h))
+
 	/// "calls EncryptAndHash() with empty payload and appends the ciphertext to the buffer"
-	/// could be hs.MixHash([]byte{})
 	hs.encryptAndHash([]byte{})
 	// println(fmt.Sprintf("[Initiatior] After EncryptAndHash(empty): h=%x", hs.h))
 
@@ -192,9 +205,9 @@ func (hs *HandshakeState) PerformHandshakeInitiator(rw io.ReadWriter) (send, rec
 	// println(fmt.Sprintf("[Initiatior] h=%x", hs.h))
 	plainStatic, err := hs.decryptAndHash(encryptedStatic)
 	if err != nil {
-		return nil, nil, nil, err
+		return nil, nil, err
 	}
-	hs.remoteStatic = Pubkey(plainStatic)
+	hs.serverStatic = EllswiftPubkey(plainStatic)
 	// println(fmt.Sprintf("[Initiatior] h=%x", hs.h))
 
 	// println(fmt.Sprintf("[Initiatior] decrypted se: %x", plainStatic))
@@ -208,13 +221,15 @@ func (hs *HandshakeState) PerformHandshakeInitiator(rw io.ReadWriter) (send, rec
 	// fmt.Println(SerializeAuthorityKey(plainStatic))
 	plainCert, err := hs.decryptAndHash(encryptedCert)
 	if err != nil {
-		return nil, nil, nil, err
+		return nil, nil, err
 	}
-	cert = &SIGNATURE_NOISE_MESSAGE{}
+	cert := &SIGNATURE_NOISE_MESSAGE{}
 	if err := cert.Decode(plainCert); err != nil {
-		println(len(encryptedCert))
-		return nil, nil, nil, err
+		// println(len(encryptedCert))
+		return nil, nil, err
 	}
+	/// save cert for optional verification later
+	hs.cert = cert
 	// println(fmt.Sprintf("[Initiatior] got cert: %+v", cert))
 
 	temp_k1, temp_k2 := HKDF(hs.ck[:], []byte{})
@@ -222,7 +237,7 @@ func (hs *HandshakeState) PerformHandshakeInitiator(rw io.ReadWriter) (send, rec
 
 	send.InitializeKey([32]byte(temp_k1))
 	recv.InitializeKey([32]byte(temp_k2))
-	return send, recv, cert, nil
+	return send, recv, nil
 }
 
 // PerformHandshakeResponder responds to a handshake initiated by a remote party.
@@ -574,7 +589,7 @@ func NewAuthoritySignature(authorityPrivkey *btcec.PrivateKey, staticPubkey Pubk
 		ValidFrom:     validFrom,
 		NotValidAfter: notValidAfter,
 	}
-	buf, err := m.Encode()
+	buf, err := m.EncodeNoSig()
 	if err != nil {
 		return nil, err
 	}

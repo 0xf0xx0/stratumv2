@@ -4,6 +4,8 @@
 
 https://stratumprotocol.org/
 
+currently unstable, api will change + no security guarantees (but any issues will be fixed)
+
 # implemented
 - core messages
 - mining protocol
@@ -14,6 +16,8 @@ https://stratumprotocol.org/
     - jobs
     - template
 - docs
+- tests
+    need test messages
 
 ## usage
 TODO: docs  
