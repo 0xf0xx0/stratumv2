@@ -57,35 +57,6 @@ func TestBase58Check(t *testing.T) {
 	}
 }
 
-func TestCerts(t *testing.T) {
-	authority := stratumv2.NewKeypair()
-	staticPub := stratumv2.Pubkey{}
-	crand.Read(staticPub[:])
-	now := uint32(time.Now().Unix())
-	cert, err := stratumv2.NewAuthoritySignature(authority.Private, staticPub, 0, now+3600)
-	if err != nil {
-		t.Errorf("expected no error, got %v", err)
-	}
-
-	ok, err := stratumv2.VerifyServerCertificate(cert, authority.PublicKey(), staticPub)
-	if err != nil {
-		t.Errorf("expected no error, got %v", err)
-	}
-	if !ok {
-		t.Errorf("failed to verify server certificate")
-	}
-
-	/// verify failure
-	badKey := stratumv2.NewKeypair()
-	ok, err = stratumv2.VerifyServerCertificate(cert, badKey.PublicKey(), staticPub)
-	if err != nil {
-		t.Errorf("expected no error, got %v", err)
-	}
-	if ok {
-		t.Errorf("cert verified when it should have failed")
-	}
-}
-
 func TestHMAC(t *testing.T) {
 	key, _ := hex.DecodeString("0b0b0b0b0b0b0b0b0b0b0b0b0b0b0b0b0b0b0b0b")
 	data := []byte("Hi There")
@@ -236,6 +207,16 @@ func TestCertVerification(t *testing.T) {
 	}
 	if !ok {
 		t.Errorf("expected certificate to be verified")
+	}
+
+	/// verify failure
+	badKey := stratumv2.NewKeypair()
+	ok, err = stratumv2.VerifyServerCertificate(cert, badKey.PublicKey(), static.PublicKey())
+	if err != nil {
+		t.Errorf("expected no error, got %v", err)
+	}
+	if ok {
+		t.Errorf("cert verified when it should have failed")
 	}
 }
 
