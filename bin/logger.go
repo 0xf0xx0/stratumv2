@@ -3,8 +3,9 @@ package main
 
 import (
 	"encoding/hex"
+	"errors"
 	"flag"
-	"fmt"
+	"io"
 	"log"
 	"net"
 	"net/netip"
@@ -12,6 +13,7 @@ import (
 	"os/signal"
 	"strconv"
 	"syscall"
+	"time"
 
 	"git.0xf0xx0.eth.limo/0xf0xx0/stratumv2"
 	"github.com/btcsuite/btcd/address/v2"
@@ -22,7 +24,6 @@ var (
 	poolhost = "91.98.76.244" ///warppool
 	poolport = uint16(3336)
 	authkey  = "9ankJhx4JpKeJd7xHzPVM98kU1WppT45Pbp3LfeKVdyt5bYgBY8"
-	reqid    = uint32(0)
 	addr     = func() address.Address {
 		b, _ := hex.DecodeString("8033d13ee81500afe03a9f48ed142b15724816dd9247c9cf55ae447a5b867449")
 		addr, _ := address.NewAddressTaproot(b, &chaincfg.MainNetParams)
@@ -34,13 +35,22 @@ var (
 		return s
 	}()
 )
+var (
+	reqid  = uint32(0)
+	chanid = -1
+)
 
 func main() {
+	log.SetFlags(log.Lmicroseconds | log.LUTC)
+	sigs := make(chan os.Signal, 1)
+	signal.Notify(sigs, syscall.SIGINT, syscall.SIGTERM)
 	opts := flag.NewFlagSet("sv2-logger", flag.ExitOnError)
+
 	srv := opts.String("server", "127.0.0.1", "server ip to connect to")
 	port := opts.Uint("port", 5661, "server port")
 	auth := opts.String("authority", "", "authority key to validate against (empty = no validation)")
 	chainAddr := opts.String("address", "", "on-chain address to authorize as (default: hardcoded bytes idk)")
+
 	if opts.Parse(os.Args[1:]) != nil {
 		return
 	}
@@ -57,14 +67,12 @@ func main() {
 		addr, _ = address.DecodeAddress(*chainAddr, &chaincfg.MainNetParams)
 	}
 
-	sigs := make(chan os.Signal, 1)
-	signal.Notify(sigs, syscall.SIGINT, syscall.SIGTERM)
 	setupmsg := stratumv2.SetupConnection{
 		Protocol:              stratumv2.MiningProtocol,
 		MinVersion:            stratumv2.ProtocolVersion,
 		MaxVersion:            stratumv2.ProtocolVersion,
 		Flags:                 stratumv2.RequiresExtendedChannelsFlag,
-		EndpointPort:          uint16(poolport),
+		EndpointPort:          poolport,
 		EndpointHost:          poolhost,
 		DeviceVendor:          "0xf0xx0",
 		DeviceHardwareVersion: "logger.go",
@@ -80,18 +88,12 @@ func main() {
 		},
 		MinExtranonceSize: 1,
 	}
-	setupPayload, err := setupmsg.Encode()
-	if err != nil {
-		log.Fatal(err.Error())
-	}
+	setupPayload, _ := setupmsg.Encode()
+	openchanPayload, _ := openchanmsg.Encode()
 	setupFrame := stratumv2.Frame{
 		MessageType:   stratumv2.MessageSetupConnection,
 		MessageLength: stratumv2.U24(len(setupPayload)),
 		Payload:       setupPayload,
-	}
-	openchanPayload, err := openchanmsg.Encode()
-	if err != nil {
-		log.Fatal(err.Error())
 	}
 	openchanFrame := stratumv2.Frame{
 		MessageType:   stratumv2.MessageOpenExtendedMiningChannel,
@@ -102,14 +104,19 @@ func main() {
 	/// connect
 	clientPaw := &stratumv2.HandshakeState{}
 
-	conn, err := net.DialTCP("tcp", nil, net.TCPAddrFromAddrPort(netip.MustParseAddrPort(poolhost+":"+strconv.Itoa(int(poolport)))))
+	rawConn, err := net.DialTCP("tcp", nil, net.TCPAddrFromAddrPort(netip.MustParseAddrPort(poolhost+":"+strconv.Itoa(int(poolport)))))
 	if err != nil {
 		log.Fatal(err.Error())
 	}
 
-	send, recv, err := clientPaw.PerformHandshakeInitiator(conn)
+	send, recv, err := clientPaw.PerformHandshakeInitiator(rawConn)
 	if err != nil {
 		log.Fatal(err.Error())
+	}
+	conn := &Sv2Conn{
+		netConn: rawConn,
+		send:    send,
+		recv:    recv,
 	}
 
 	if authkey != "" {
@@ -129,58 +136,106 @@ func main() {
 
 	go func() {
 		for {
-			frame, err := recv.DecryptFrameFromReader(conn)
+			frame, err := conn.ReadFrame()
 			if err != nil {
+				if err == io.EOF || errors.Is(err, net.ErrClosed) {
+					return
+				}
 				log.Fatal(err.Error())
 			}
-			bytes, _ := frame.Encode()
-			fmt.Printf("RX: %x\n", bytes)
 
 			if frame.MessageType == stratumv2.MessageOpenExtendedMiningChannelSuccess {
 				msg := stratumv2.OpenExtendedMiningChannelSuccess{}
 				msg.Decode(frame.Payload)
+				chanid = int(msg.ChannelID)
 			}
 		}
 	}()
 
-	setupBytes, err := send.EncryptFrame(setupFrame)
+	_, err = conn.WriteFrame(setupFrame)
 	if err != nil {
 		log.Fatal(err.Error())
 	}
-	// fmt.Printf("%+v\n", setupmsg)
-	// fmt.Printf("%+v\n", setupFrame)
-	fmt.Printf("TX: %x\n", setupBytes)
-	conn.Write(setupBytes)
 
-	openchanBytes, err := send.EncryptFrame(openchanFrame)
+	_, err = conn.WriteFrame(openchanFrame)
 	if err != nil {
 		log.Fatal(err.Error())
 	}
-	fmt.Printf("TX: %x\n", openchanBytes)
-	conn.Write(openchanBytes)
 
 	<-sigs
-	// closemsg := stratumv2.CloseChannel{
-	// 	ChannelID:  chanID,
-	// 	ReasonCode: "ubisoft go steamworks bye bye, always on drm",
-	// }
-	// closemsgPayload, err := closemsg.Encode()
-	// if err != nil {
-	// 	log.Fatal(err.Error())
-	// }
-	// closemsgFrame := stratumv2.Frame{
-	// 	MessageType:   stratumv2.MessageCloseChannel,
-	// 	MessageLength: stratumv2.U24(len(closemsgPayload)),
-	// 	Payload:       closemsgPayload,
-	// }
+	if chanid > -1 {
+		closemsg := stratumv2.CloseChannel{
+			ChannelID:  uint32(chanid),
+			ReasonCode: "ubisoft go steamworks bye bye, always on drm",
+		}
+		closemsgPayload, err := closemsg.Encode()
+		if err != nil {
+			log.Fatal(err.Error())
+		}
+		closemsgFrame := stratumv2.Frame{
+			MessageType:   stratumv2.MessageCloseChannel,
+			MessageLength: stratumv2.U24(len(closemsgPayload)),
+			Payload:       closemsgPayload,
+		}
+		_, err = conn.WriteFrame(closemsgFrame)
+		if err != nil {
+			log.Println(err.Error())
+		}
+	}
+
 	// closemsgBytes, err := send.EncryptFrame(closemsgFrame)
-	// if err != nil {
-	// 	log.Fatal(err.Error())
-	// }
+	//
 	// conn.Write(closemsgBytes)
 	conn.Close()
 }
 func newReqID() uint32 {
 	reqid++
 	return reqid
+}
+
+// wrapper to enc/dec and log frames
+type Sv2Conn struct {
+	netConn    net.Conn
+	send, recv *stratumv2.CipherState
+}
+
+func (conn *Sv2Conn) WriteFrame(frame stratumv2.Frame) (int, error) {
+	plainBytes, _ := frame.Encode()
+	log.Printf("TX: %x\n", plainBytes)
+	return conn.send.EncryptFrameToWriter(frame, conn.netConn)
+}
+func (conn *Sv2Conn) ReadFrame() (stratumv2.Frame, error) {
+	frame, err := conn.recv.DecryptFrameFromReader(conn.netConn)
+	if err == nil {
+		plainBytes, _ := frame.Encode()
+		log.Printf("RX: %x\n", plainBytes)
+	}
+	return frame, err
+}
+
+/// net.COnn impl
+
+func (conn *Sv2Conn) Write(b []byte) (int, error) {
+	return conn.netConn.Write(b)
+}
+func (conn *Sv2Conn) Read(b []byte) (int, error) {
+	return conn.netConn.Read(b)
+}
+func (conn *Sv2Conn) Close() error {
+	return conn.netConn.Close()
+}
+func (conn *Sv2Conn) LocalAddr() net.Addr {
+	return conn.netConn.LocalAddr()
+}
+func (conn *Sv2Conn) RemoteAddr() net.Addr {
+	return conn.netConn.RemoteAddr()
+}
+func (conn *Sv2Conn) SetDeadline(t time.Time) error {
+	return conn.netConn.SetDeadline(t)
+}
+func (conn *Sv2Conn) SetReadDeadline(t time.Time) error {
+	return conn.netConn.SetReadDeadline(t)
+}
+func (conn *Sv2Conn) SetWriteDeadline(t time.Time) error {
+	return conn.netConn.SetWriteDeadline(t)
 }
