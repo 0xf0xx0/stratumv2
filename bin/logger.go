@@ -3,6 +3,7 @@ package main
 
 import (
 	"encoding/hex"
+	"flag"
 	"fmt"
 	"net"
 	"net/netip"
@@ -18,10 +19,10 @@ import (
 
 var (
 	poolhost = "91.98.76.244" ///warppool
-	poolport = 3336
+	poolport = uint16(3336)
 	authkey  = "9ankJhx4JpKeJd7xHzPVM98kU1WppT45Pbp3LfeKVdyt5bYgBY8"
 	reqid    = uint32(0)
-	addr     = func() *address.AddressTaproot {
+	addr     = func() address.Address {
 		b, _ := hex.DecodeString("8033d13ee81500afe03a9f48ed142b15724816dd9247c9cf55ae447a5b867449")
 		addr, _ := address.NewAddressTaproot(b, &chaincfg.MainNetParams)
 		return addr
@@ -34,6 +35,27 @@ var (
 )
 
 func main() {
+	opts := flag.NewFlagSet("sv2-logger", flag.ExitOnError)
+	srv := opts.String("server", "localhost", "server to connect to")
+	port := opts.Uint("port", 5661, "server port")
+	auth := opts.String("authority", "", "authority key to validate against (empty = no validation)")
+	chainAddr := opts.String("address", "", "on-chain address to authorize as (default: hardcoded bytes idk)")
+	if opts.Parse(os.Args[1:]) != nil {
+		return
+	}
+	if srv != nil {
+		poolhost = *srv
+	}
+	if port != nil {
+		poolport = uint16(*port)
+	}
+	if auth != nil {
+		authkey = *auth
+	}
+	if chainAddr != nil {
+		addr, _ = address.DecodeAddress(*chainAddr, &chaincfg.MainNetParams)
+	}
+
 	sigs := make(chan os.Signal, 1)
 	signal.Notify(sigs, syscall.SIGINT, syscall.SIGTERM)
 	setupmsg := stratumv2.SetupConnection{

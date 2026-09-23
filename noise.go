@@ -167,19 +167,19 @@ func (hs *HandshakeState) PerformHandshakeInitiator(rw io.ReadWriter) (send, rec
 	// println(fmt.Sprintf("[Initiator] Init  h=%x", hs.h))
 
 	/// 4.5.1.1
-	/// "initializes empty output buffer"
+	/// "1. initializes empty output buffer"
 	out := bytes.Buffer{}
 	out.Grow(64)
-	/// "generates ephemeral keypair e, appends e.public_key.serializeEllSwift() to the buffer (64 bytes plaintext EllSwift encoded public key)"
+	/// "2. generates ephemeral keypair e, appends e.public_key.serializeEllSwift() to the buffer (64 bytes plaintext EllSwift encoded public key)"
 	ephemeral := NewKeypair()
 	// println(fmt.Sprintf("[Initiatior] ellswift: %x", ephemeral.SerializeEllswift()))
 	out.Write(ephemeral.SerializeEllswiftBytes())
 
-	/// "calls MixHash(e.public_key)"
+	/// "3. calls MixHash(e.public_key)"
 	hs.mixHash(ephemeral.SerializeEllswiftBytes())
 	// println(fmt.Sprintf("[Initiatior] After MixHash(e): h=%x", hs.h))
 
-	/// "calls EncryptAndHash() with empty payload and appends the ciphertext to the buffer"
+	/// "4. calls EncryptAndHash() with empty payload and appends the ciphertext to the buffer"
 	hs.encryptAndHash([]byte{})
 	// println(fmt.Sprintf("[Initiatior] After EncryptAndHash(empty): h=%x", hs.h))
 
@@ -187,20 +187,28 @@ func (hs *HandshakeState) PerformHandshakeInitiator(rw io.ReadWriter) (send, rec
 	out.Reset()
 
 	/// 4.5.2.2
+	/// "1. receives NX-handshake part 2 message"
 	pt2 := make([]byte, 234)
 	rw.Read(pt2)
+	/// "2. interprets first 64 bytes as EllSwift encoded re.public_key"
 	remoteEphemeral := pt2[:64]
-	encryptedStatic := pt2[64:144]
-	encryptedCert := pt2[144:]
+	encryptedStatic := pt2[64:144] /// 80 for static
+	encryptedCert := pt2[144:]     /// rest is cert
 
+	/// "3. calls MixHash(re.public_key)"
 	hs.mixHash(remoteEphemeral)
 	// println(fmt.Sprintf("[Initiatior] got se: %x", remoteEphemeral))
 	// println(fmt.Sprintf("[Initiatior] got es: %x", encryptedStatic))
 	// println(fmt.Sprintf("[Initiatior] After MixHash(se): h=%x", hs.h))
 
+	/// "4. calls MixKey(ECDH(e.private_key, re.public_key))"
 	sharedeeDH := hs.ecdh(ephemeral, EllswiftPubkey(remoteEphemeral), true)
 	// println(fmt.Sprintf("[Initiatior] ee DH shared secret: %x", sharedeeDH))
 	hs.mixKey(sharedeeDH)
+
+	/// "5. decrypts next 80 bytes with DecryptAndHash() and
+	/// 	   stores the results as rs.public_key which is server's static public key
+	///     (note that 64 bytes is the public key and 16 bytes is MAC)"
 
 	// println(fmt.Sprintf("[Initiatior] h=%x", hs.h))
 	plainStatic, err := hs.decryptAndHash(encryptedStatic)
@@ -212,13 +220,16 @@ func (hs *HandshakeState) PerformHandshakeInitiator(rw io.ReadWriter) (send, rec
 
 	// println(fmt.Sprintf("[Initiatior] decrypted se: %x", plainStatic))
 
+	/// "6. calls MixKey(ECDH(e.private_key, rs.public_key)"
 	sharedesDH := hs.ecdh(ephemeral, EllswiftPubkey(plainStatic), true)
 	// println(fmt.Sprintf("[Initiatior] es DH shared secret: %x", sharedesDH))
 	hs.mixKey(sharedesDH)
 	// println(fmt.Sprintf("[Initiatior] After MixKey(es): ck=%x", hs.ck))
 	// println(fmt.Sprintf("[Initiatior] h (AD for decrypt cert): h=%x", hs.h))
+	// println(SerializeAuthorityKey(plainStatic))
 
-	// fmt.Println(SerializeAuthorityKey(plainStatic))
+	/// "7. decrypts next 90 bytes with DecryptAndHash() and deserialize plaintext into
+	///     SIGNATURE_NOISE_MESSAGE (74 bytes data + 16 bytes MAC)"
 	plainCert, err := hs.decryptAndHash(encryptedCert)
 	if err != nil {
 		return nil, nil, err
@@ -232,11 +243,14 @@ func (hs *HandshakeState) PerformHandshakeInitiator(rw io.ReadWriter) (send, rec
 	hs.cert = cert
 	// println(fmt.Sprintf("[Initiatior] got cert: %+v", cert))
 
+	/// "8. return pair of CipherState objects, the first for encrypting transport messages
+	///     from initiator to responder, and the second for messages in the other direction"
 	temp_k1, temp_k2 := HKDF(hs.ck[:], []byte{})
 	// println(fmt.Sprintf("[Initiator] k1=%x, k2=%x", temp_k1, temp_k2))
 
 	send.InitializeKey([32]byte(temp_k1))
 	recv.InitializeKey([32]byte(temp_k2))
+	/// initiator->responder, responder->initiator
 	return send, recv, nil
 }
 
@@ -259,12 +273,18 @@ func (hs *HandshakeState) PerformHandshakeResponder(rw io.ReadWriter, signedCert
 	// println(fmt.Sprintf("[Responder] Init  h=%x", hs.h))
 
 	/// 4.5.1.2
+	/// "1. receives ephemeral public key message (64 bytes plaintext EllSwift encoded public key)
+	///  2. parses received public key as re.public_key"
 	remoteEphemeral := make([]byte, 64)
 	rw.Read(remoteEphemeral)
-	// println(fmt.Sprintf("[Responder] got ie: %x", remoteEphemeral))
+
+	/// "3. calls MixHash(re.public_key)"
 	hs.mixHash(remoteEphemeral)
+	// println(fmt.Sprintf("[Responder] got ie: %x", remoteEphemeral))
 	// println(fmt.Sprintf("[Responder] After MixHash(ie): h=%x", hs.h))
 
+	/// "4. calls DecryptAndHash() on the remaining bytes, which is the empty payload
+	///     (note that k is empty at this point, so this effectively reduces down to MixHash() on empty data)"
 	hs.decryptAndHash([]byte{})
 	// println(fmt.Sprintf("[Responder] After DecryptAndHash(empty): h=%x", hs.h))
 
@@ -272,49 +292,55 @@ func (hs *HandshakeState) PerformHandshakeResponder(rw io.ReadWriter, signedCert
 	/// 4.5.2.1
 	out := bytes.Buffer{}
 	out.Grow(234) /// length of pt 2
-	ephemeral := NewKeypair()
-	// println(fmt.Sprintf("[Responder] se: %x", ephemeral.SerializeEllswift()))
-	out.Write(ephemeral.SerializeEllswiftBytes())
 
+	/// "2. generates ephemeral keypair e, appends e.public_key to the buffer (64 bytes plaintext EllSwift encoded public key)"
+	ephemeral := NewKeypair()
+	out.Write(ephemeral.SerializeEllswiftBytes())
+	// println(fmt.Sprintf("[Responder] se: %x", ephemeral.SerializeEllswift()))
+
+	/// "3. calls MixHash(e.public_key)"
 	hs.mixHash(ephemeral.SerializeEllswiftBytes())
 	// println(fmt.Sprintf("[Responder] After MixHash(se): h=%x", hs.h))
 
+	/// "4. calls MixKey(ECDH(e.private_key, re.public_key))"
 	sharedeeDH := hs.ecdh(ephemeral, EllswiftPubkey(remoteEphemeral), false)
-	// println(fmt.Sprintf("[Responder] ee DH shared secret: %x", sharedeeDH))
 	hs.mixKey(sharedeeDH)
+	// println(fmt.Sprintf("[Responder] ee DH shared secret: %x", sharedeeDH))
 	// println(fmt.Sprintf("[Responder] After MixKey(ee): ck=%x", hs.ck))
 
 	// println(fmt.Sprintf("[Responder] h (AD for encrypt static): h=%x", hs.h))
 	// println(fmt.Sprintf("[Responder] Static pub (plaintext): %x", staticKeys.SerializeEllswift()))
 
+	/// "5. appends EncryptAndHash(s.public_key) (64 bytes encrypted EllSwift encoded public key, 16 bytes MAC)"
 	out.Write(hs.encryptAndHash(staticKeys.SerializeEllswiftBytes()))
 	// println(fmt.Sprintf("[Responder] Encrypted static (%d bytes): %x", len(x), x))
 
+	/// "6. calls MixKey(ECDH(s.private_key, re.public_key))"
 	sharedesDH := hs.ecdh(staticKeys, EllswiftPubkey(remoteEphemeral), false)
-	// println(fmt.Sprintf("[Responder] es DH shared secret (responder): %x", sharedesDH))
-
 	hs.mixKey(sharedesDH)
+	// println(fmt.Sprintf("[Responder] es DH shared secret (responder): %x", sharedesDH))
 	// println(fmt.Sprintf("[Responder] After MixKey(es): ck=%x", hs.ck))
 
+	/// "7. appends EncryptAndHash(SIGNATURE_NOISE_MESSAGE) to the buffer"
 	certBytes, err := signedCert.Encode()
 	if err != nil {
 		return nil, nil, err
 	}
-
+	out.Write(hs.encryptAndHash(certBytes))
 	// println(fmt.Sprintf("[Responder] h (AD for encrypt cert): h=%x", hs.h))
 	// println(fmt.Sprintf("[Responder] Cert payload (%d bytes): %x", len(certBytes), certBytes))
 
-	out.Write(hs.encryptAndHash(certBytes))
+	/// "8. submits the buffer for sending to the initiator"
 	rw.Write(out.Bytes())
 	out.Reset()
 
+	/// "9. return pair of CipherState objects, the first for encrypting transport messages
+	///     from initiator to responder, and the second for messages in the other direction"
 	temp_k1, temp_k2 := HKDF(hs.ck[:], []byte{})
 	// println(fmt.Sprintf("[Responder] k1=%x, k2=%x", temp_k1, temp_k2))
-
 	recv.InitializeKey([32]byte(temp_k1))
 	send.InitializeKey([32]byte(temp_k2))
-	// initiator->responder, responder->initiator
-	// (c2s, s2c)
+	/// initiator->responder, responder->initiator
 	return recv, send, nil
 }
 
