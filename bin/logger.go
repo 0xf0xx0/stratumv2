@@ -5,6 +5,7 @@ import (
 	"encoding/hex"
 	"flag"
 	"fmt"
+	"log"
 	"net"
 	"net/netip"
 	"os"
@@ -36,7 +37,7 @@ var (
 
 func main() {
 	opts := flag.NewFlagSet("sv2-logger", flag.ExitOnError)
-	srv := opts.String("server", "localhost", "server to connect to")
+	srv := opts.String("server", "127.0.0.1", "server ip to connect to")
 	port := opts.Uint("port", 5661, "server port")
 	auth := opts.String("authority", "", "authority key to validate against (empty = no validation)")
 	chainAddr := opts.String("address", "", "on-chain address to authorize as (default: hardcoded bytes idk)")
@@ -52,7 +53,7 @@ func main() {
 	if auth != nil {
 		authkey = *auth
 	}
-	if chainAddr != nil {
+	if chainAddr != nil && *chainAddr != "" {
 		addr, _ = address.DecodeAddress(*chainAddr, &chaincfg.MainNetParams)
 	}
 
@@ -66,14 +67,14 @@ func main() {
 		EndpointPort:          uint16(poolport),
 		EndpointHost:          poolhost,
 		DeviceVendor:          "0xf0xx0",
-		DeviceHardwareVersion: "test",
+		DeviceHardwareVersion: "logger.go",
 		DeviceFirmware:        "git.0xf0xx0.eth.limo/0xf0xx0/stratumv2",
 		DeviceID:              "paws",
 	}
 	openchanmsg := stratumv2.OpenExtendedMiningChannel{
 		OpenStandardMiningChannel: stratumv2.OpenStandardMiningChannel{
 			RequestID:       newReqID(),
-			UserIdentity:    addr.EncodeAddress(),
+			UserIdentity:    addr.EncodeAddress() + ".sv2-logger",
 			NominalHashRate: 1e12,
 			MaxTarget:       maxtarget,
 		},
@@ -81,7 +82,7 @@ func main() {
 	}
 	setupPayload, err := setupmsg.Encode()
 	if err != nil {
-		panic(err)
+		log.Fatal(err.Error())
 	}
 	setupFrame := stratumv2.Frame{
 		MessageType:   stratumv2.MessageSetupConnection,
@@ -90,7 +91,7 @@ func main() {
 	}
 	openchanPayload, err := openchanmsg.Encode()
 	if err != nil {
-		panic(err)
+		log.Fatal(err.Error())
 	}
 	openchanFrame := stratumv2.Frame{
 		MessageType:   stratumv2.MessageOpenExtendedMiningChannel,
@@ -100,36 +101,37 @@ func main() {
 
 	/// connect
 	clientPaw := &stratumv2.HandshakeState{}
-	authorityPubkey, err := stratumv2.DeserializeAuthorityKey(authkey)
-	if err != nil {
-		panic(err)
-	}
 
-	conn, err := net.DialTCP("tcp", nil, net.TCPAddrFromAddrPort(netip.MustParseAddrPort(poolhost+":"+strconv.Itoa(poolport))))
+	conn, err := net.DialTCP("tcp", nil, net.TCPAddrFromAddrPort(netip.MustParseAddrPort(poolhost+":"+strconv.Itoa(int(poolport)))))
 	if err != nil {
-		panic(err)
+		log.Fatal(err.Error())
 	}
 
 	send, recv, err := clientPaw.PerformHandshakeInitiator(conn)
 	if err != nil {
-		panic(err)
+		log.Fatal(err.Error())
 	}
 
-	valid, err := clientPaw.VerifyServerCertificate(stratumv2.Pubkey(authorityPubkey))
-	if err != nil {
-		panic(err)
+	if authkey != "" {
+		authorityPubkey, err := stratumv2.DeserializeAuthorityKey(authkey)
+		if err != nil {
+			log.Fatal(err.Error())
+		}
+		valid, err := clientPaw.VerifyServerCertificate(stratumv2.Pubkey(authorityPubkey))
+		if err != nil {
+			log.Fatal(err.Error())
+		}
+		if !valid {
+			log.Fatal("cert validation failed!")
+		}
+		println("cert validation success!")
 	}
-	if !valid {
-		println("cert validation failed!")
-		return
-	}
-	println("cert validation success!")
 
 	go func() {
 		for {
 			frame, err := recv.DecryptFrameFromReader(conn)
 			if err != nil {
-				panic(err)
+				log.Fatal(err.Error())
 			}
 			bytes, _ := frame.Encode()
 			fmt.Printf("RX: %x\n", bytes)
@@ -143,7 +145,7 @@ func main() {
 
 	setupBytes, err := send.EncryptFrame(setupFrame)
 	if err != nil {
-		panic(err)
+		log.Fatal(err.Error())
 	}
 	// fmt.Printf("%+v\n", setupmsg)
 	// fmt.Printf("%+v\n", setupFrame)
@@ -152,7 +154,7 @@ func main() {
 
 	openchanBytes, err := send.EncryptFrame(openchanFrame)
 	if err != nil {
-		panic(err)
+		log.Fatal(err.Error())
 	}
 	fmt.Printf("TX: %x\n", openchanBytes)
 	conn.Write(openchanBytes)
@@ -164,7 +166,7 @@ func main() {
 	// }
 	// closemsgPayload, err := closemsg.Encode()
 	// if err != nil {
-	// 	panic(err)
+	// 	log.Fatal(err.Error())
 	// }
 	// closemsgFrame := stratumv2.Frame{
 	// 	MessageType:   stratumv2.MessageCloseChannel,
@@ -173,7 +175,7 @@ func main() {
 	// }
 	// closemsgBytes, err := send.EncryptFrame(closemsgFrame)
 	// if err != nil {
-	// 	panic(err)
+	// 	log.Fatal(err.Error())
 	// }
 	// conn.Write(closemsgBytes)
 	conn.Close()
