@@ -84,7 +84,7 @@ func (f *Frame) Decode(b []byte) error {
 		return err
 	}
 	n := FrameHeaderSize + int(f.MessageLength)
-	err = f.DecodePayload(b[FrameHeaderSize:n])
+	err = f.ReadPayload(b[FrameHeaderSize:n])
 	if err != nil {
 		return err
 	}
@@ -118,8 +118,8 @@ func (f *Frame) DecodeHeader(b []byte) error {
 	return r.Error()
 }
 
-// DecodePayload reads the payload from the given byte slice. It should be called after DecodeHeader.
-func (f *Frame) DecodePayload(b []byte) error {
+// ReadPayload reads the payload from the given byte slice. It should be called after DecodeHeader.
+func (f *Frame) ReadPayload(b []byte) error {
 	r := NewBinaryReader(b)
 	f.Payload = r.ReadBytes(int(f.MessageLength))
 	return r.Error()
