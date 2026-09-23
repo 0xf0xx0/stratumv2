@@ -249,3 +249,86 @@ func (u U256) String() string {
 func (target *U256) IsMetBy(hash *U256) bool {
 	return bytes.Compare(target[:], hash[:]) <= 0
 }
+
+func (t MessageType) String() string {
+	ty, _ := MessageTypeToString(t)
+	return ty
+}
+
+// this will be a BITCH to maintain
+// TODO: find better way
+func MessageTypeToString(t MessageType) (string, error) {
+	switch t {
+	case MessageAllocateMiningJobToken:
+		return "AllocateMiningJobToken", nil
+	case MessageAllocateMiningJobTokenSuccess:
+		return "AllocateMiningJobTokenSuccess", nil
+	case MessageChannelEndpointChanged:
+		return "ChannelEndpointChanged", nil
+	case MessageCloseChannel:
+		return "CloseChannel", nil
+	case MessageDeclareMiningJob:
+		return "DeclareMiningJob", nil
+	case MessageDeclareMiningJobError:
+		return "DeclareMiningJobError", nil
+	case MessageDeclareMiningJobSuccess:
+		return "DeclareMiningJobSuccess", nil
+	case MessageNewExtendedMiningJob:
+		return "NewExtendedMiningJob", nil
+	case MessageNewMiningJob:
+		return "NewMiningJob", nil
+	case MessageOpenExtendedMiningChannel:
+		return "OpenExtendedMiningChannel", nil
+	case MessageOpenExtendedMiningChannelSuccess:
+		return "OpenExtendedMiningChannelSuccess", nil
+	case MessageOpenMiningChannelError:
+		return "OpenMiningChannelError", nil
+	case MessageOpenStandardMiningChannel:
+		return "OpenStandardMiningChannel", nil
+	case MessageOpenStandardMiningChannelSuccess:
+		return "OpenStandardMiningChannelSuccess", nil
+	case MessageProvideMissingTransactions:
+		return "ProvideMissingTransactions", nil
+	case MessageProvideMissingTransactionsSuccess:
+		return "ProvideMissingTransactionsSuccess", nil
+	case MessagePushSolution:
+		return "PushSolution", nil
+	case MessageReconnect:
+		return "Reconnect", nil
+	case MessageReserved:
+		return "Reserved", nil
+	case MessageSetCustomMiningJob:
+		return "SetCustomMiningJob", nil
+	case MessageSetCustomMiningJobError:
+		return "SetCustomMiningJobError", nil
+	case MessageSetCustomMiningJobSuccess:
+		return "SetCustomMiningJobSuccess", nil
+	case MessageSetExtranoncePrefix:
+		return "SetExtranoncePrefix", nil
+	case MessageSetGroupChannel:
+		return "SetGroupChannel", nil
+	case MessageSetNewPrevHash:
+		return "SetNewPrevHash", nil
+	case MessageSetTarget:
+		return "SetTarget", nil
+	case MessageSetupConnection:
+		return "SetupConnection", nil
+	case MessageSetupConnectionError:
+		return "SetupConnectionError", nil
+	case MessageSetupConnectionSuccess:
+		return "SetupConnectionSuccess", nil
+	case MessageSubmitSharesError:
+		return "SubmitSharesError", nil
+	case MessageSubmitSharesExtended:
+		return "SubmitSharesExtended", nil
+	case MessageSubmitSharesStandard:
+		return "SubmitSharesStandard", nil
+	case MessageSubmitSharesSuccess:
+		return "SubmitSharesSuccess", nil
+	case MessageUpdateChannel:
+		return "UpdateChannel", nil
+	case MessageUpdateChannelError:
+		return "UpdateChannelError", nil
+	}
+	return "", errors.New("unknown message type")
+}

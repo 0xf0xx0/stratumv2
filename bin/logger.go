@@ -201,19 +201,19 @@ type Sv2Conn struct {
 
 func (conn *Sv2Conn) WriteFrame(frame stratumv2.Frame) (int, error) {
 	plainBytes, _ := frame.Encode()
-	log.Printf("TX: %x\n", plainBytes)
+	log.Printf("TX: (%s) %x\n", frame.MessageType, plainBytes)
 	return conn.send.EncryptFrameToWriter(frame, conn.netConn)
 }
 func (conn *Sv2Conn) ReadFrame() (stratumv2.Frame, error) {
 	frame, err := conn.recv.DecryptFrameFromReader(conn.netConn)
 	if err == nil {
 		plainBytes, _ := frame.Encode()
-		log.Printf("RX: %x\n", plainBytes)
+		log.Printf("RX: (%s) %x\n", frame.MessageType, plainBytes)
 	}
 	return frame, err
 }
 
-/// net.COnn impl
+/// net.Conn impl
 
 func (conn *Sv2Conn) Write(b []byte) (int, error) {
 	return conn.netConn.Write(b)
