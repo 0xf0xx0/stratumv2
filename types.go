@@ -3,6 +3,7 @@ package stratumv2
 // contains all (well, most) of the types used in sv2 and this lib
 
 import (
+	"bytes"
 	"encoding/hex"
 	"errors"
 )
@@ -246,11 +247,5 @@ func (u U256) String() string {
 
 // hash must be less than or equal to the target to be a valid share/block
 func (target *U256) IsMetBy(hash *U256) bool {
-	for i := range 32 {
-		x := 31 - i
-		if hash[x] <= target[x] {
-			return true
-		}
-	}
-	return false
+	return bytes.Compare(target[:], hash[:]) <= 0
 }
