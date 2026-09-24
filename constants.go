@@ -18,6 +18,7 @@ const (
 	NoiseHeaderSize       = 22 // size of an encrypted header
 	FrameHeaderSize       = 6  // size of a plaintext header
 	MacLen                = 16
+	MaxU24                = (2 << 23) - 1 // largest value that can be stored in a [U24]
 )
 
 var (
