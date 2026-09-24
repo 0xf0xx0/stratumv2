@@ -32,6 +32,13 @@ const (
 	MessageReconnect
 )
 
+// Protocols
+const (
+	MiningProtocol Protocol = iota
+	JobDeclarationProtocol
+	TemplateDistributionProtocol
+)
+
 // Mining Protocol
 const (
 	MessageOpenStandardMiningChannel MessageType = iota + 0x10

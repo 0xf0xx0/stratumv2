@@ -6,6 +6,8 @@ import (
 	"bytes"
 	"encoding/hex"
 	"errors"
+	"io"
+	"slices"
 )
 
 // helpers
@@ -36,6 +38,164 @@ type U24 uint32
 
 // 3.4
 type Extension = uint16
+
+type Frame struct {
+	// Unique identifier of the extension associated with this protocol message.
+	// For messages defined in the core specification
+	// (Common, Mining, Job Declaration, and Template Distribution Protocols,
+	// which can only be extended via [TLV] fields), this field MUST be set to [ExtensionTypeCore].
+	// For messages introduced by an extension, this field MUST be set to that extension's identifier.
+	// Note that even if a message is later modified by a different extension through
+	// [TLV] fields, the ExtensionType of the base frame remains set to the extension
+	// that originally defined the message structure.
+	ExtensionType Extension
+	// Unique identifier of this protocol message
+	MessageType MessageType
+	// Length of the protocol message, not including this header
+	MessageLength U24
+	// Message-specific payload of length MessageLength.
+	// If the MSB in ExtensionType (the `channel_msg` bit) is set the first
+	// four bytes are defined as a U32 "channel_id", though this definition is
+	// repeated in the message definitions below and these 4 bytes are included in MessageLength.
+	Payload []byte // MAYBE: make Message interface? would that fuck up the current handling?
+	TLVs    []TLV  // appended to Payload on .Encode()
+}
+
+func (f *Frame) Encode() ([]byte, error) {
+	if int(f.MessageLength) != len(f.Payload) {
+		return nil, errors.New("Frame.Encode: MessageLength != len(Payload)")
+	}
+	out := NewBinaryBuilder().Grow(FrameHeaderSize + int(f.MessageLength))
+	/// FIXME: properly encode tlvs
+	if f.TLVs != nil {
+		tlvOut := NewBinaryBuilder()
+		/// "TLV fields MUST be ordered by extension_type.
+		///  Since all extensions are negotiated beforehand,
+		///  the recipient MUST process TLV fields in order of
+		//   extension_type and use their Type identifiers to correctly interpret them.
+		slices.SortStableFunc(f.TLVs, func(i, j TLV) int {
+			if i.ExtensionType > j.ExtensionType {
+				return 1
+			}
+			if i.ExtensionType < j.ExtensionType {
+				return -1
+			}
+			return 0
+		})
+		for _, tlv := range f.TLVs {
+			enc, err := tlv.Encode()
+			if err != nil {
+				return nil, err
+			}
+			tlvOut.AddBytes(enc)
+		}
+		f.MessageLength += U24(tlvOut.Len())
+		b, err := tlvOut.Bytes()
+		if err != nil {
+			return nil, err
+		}
+		f.Payload = append(f.Payload, b...)
+	}
+	out.AddU16(f.ExtensionType).
+		AddU8(uint8(f.MessageType)).
+		AddU24(f.MessageLength).
+		AddBytes(f.Payload)
+
+	return out.Bytes()
+}
+
+// Decode decodes the full frame from the given byte slice.
+func (f *Frame) Decode(b []byte) error {
+	err := f.DecodeHeader(b[:FrameHeaderSize])
+	if err != nil {
+		return err
+	}
+	n := FrameHeaderSize + int(f.MessageLength)
+	err = f.ReadPayload(b[FrameHeaderSize:n])
+	if err != nil {
+		return err
+	}
+	// U24+U16 = 5 bytes
+	// if remainder is less than this its just garbage
+	l := len(b)
+	if l > n+5 {
+		lastLen := 0
+		for {
+			if l-(n+lastLen) < 5 {
+				return nil
+			}
+			tlv := TLV{}
+			err := tlv.Decode(b[n+lastLen:])
+			if err != nil {
+				return err
+			}
+			f.TLVs = append(f.TLVs, tlv)
+			lastLen += int(tlv.Length) + 5
+		}
+	}
+	return err
+}
+
+// DecodeHeader decodes just the frame header from the given byte slice.
+func (f *Frame) DecodeHeader(b []byte) error {
+	r := NewBinaryReader(b)
+	f.ExtensionType = r.ReadU16()
+	f.MessageType = MessageType(r.ReadU8())
+	f.MessageLength = r.ReadU24()
+	return r.Error()
+}
+
+// ReadPayload reads the payload from the given byte slice. It should be called after DecodeHeader.
+func (f *Frame) ReadPayload(b []byte) error {
+	r := NewBinaryReader(b)
+	f.Payload = r.ReadBytes(int(f.MessageLength))
+	return r.Error()
+}
+func (f *Frame) DecodeFromReader(r io.Reader) error {
+	var err error
+
+	header := make([]byte, FrameHeaderSize)
+	if _, err = io.ReadFull(r, header); err != nil {
+		return err
+	}
+
+	if err = f.DecodeHeader(header); err != nil {
+		return err
+	}
+
+	f.Payload = make([]byte, f.MessageLength)
+	if _, err = io.ReadFull(r, f.Payload); err != nil {
+		return err
+	}
+	return nil
+}
+
+type TLV struct {
+	// Identifies the TLV field.
+	// The first 2 bytes represent the extension_type,
+	ExtensionType uint16
+	// and the third byte represents the field_type within the extension context.
+	FieldType uint8
+	Length    uint16 // Indicates the size (in bytes) of the Value field.
+	Value     []byte // The actual data of the extension field, of variable length.
+}
+
+func (t *TLV) Encode() ([]byte, error) {
+	out := NewBinaryBuilder()
+	return out.Grow(len(t.Value) + 5).
+		AddU16(t.ExtensionType).
+		AddU8(t.FieldType).
+		AddU16(t.Length).
+		AddBin64K(t.Value).Bytes()
+}
+func (t *TLV) Decode(b []byte) error {
+	r := NewBinaryReader(b)
+	t.ExtensionType = r.ReadU16()
+	t.FieldType = r.ReadU8()
+	t.Length = r.ReadU16()
+	t.Value = r.ReadBytes(int(t.Length))
+	return r.Error()
+}
 
 // used for encoding SEQ[T]
 //
