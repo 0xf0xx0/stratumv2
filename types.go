@@ -374,8 +374,7 @@ func (u *U256) SetBytes(b []byte) error {
 	return nil
 }
 func (u *U256) SetString(s string) error {
-	l := len(s)
-	if l != 64 {
+	if len(s) != 64 {
 		return errors.New("SetString: len not 64")
 	}
 	b, err := hex.DecodeString(s)
