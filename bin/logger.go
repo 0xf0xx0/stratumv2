@@ -34,6 +34,7 @@ var (
 		s.SetString("00000000FFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFF")
 		return s
 	}()
+	loog = log.New(os.Stdout, "\x1b[0m", log.Lmicroseconds|log.LUTC)
 )
 var (
 	reqid  = uint32(0)
@@ -41,7 +42,6 @@ var (
 )
 
 func main() {
-	log.SetFlags(log.Lmicroseconds | log.LUTC)
 	sigs := make(chan os.Signal, 1)
 	signal.Notify(sigs, syscall.SIGINT, syscall.SIGTERM)
 	opts := flag.NewFlagSet("sv2-logger", flag.ExitOnError)
@@ -106,12 +106,12 @@ func main() {
 
 	rawConn, err := net.DialTCP("tcp", nil, net.TCPAddrFromAddrPort(netip.MustParseAddrPort(poolhost+":"+strconv.Itoa(int(poolport)))))
 	if err != nil {
-		log.Fatal(err.Error())
+		loog.Fatal(err.Error())
 	}
 
 	send, recv, err := clientPaw.PerformHandshakeInitiator(rawConn)
 	if err != nil {
-		log.Fatal(err.Error())
+		loog.Fatal(err.Error())
 	}
 	conn := &Sv2Conn{
 		netConn: rawConn,
@@ -122,14 +122,14 @@ func main() {
 	if authkey != "" {
 		authorityPubkey, err := stratumv2.DeserializeAuthorityKey(authkey)
 		if err != nil {
-			log.Fatal(err.Error())
+			loog.Fatal(err.Error())
 		}
 		valid, err := clientPaw.VerifyServerCertificate(stratumv2.Pubkey(authorityPubkey))
 		if err != nil {
-			log.Fatal(err.Error())
+			loog.Fatal(err.Error())
 		}
 		if !valid {
-			log.Fatal("cert validation failed!")
+			loog.Fatal("cert validation failed!")
 		}
 		println("cert validation success!")
 	}
@@ -141,7 +141,7 @@ func main() {
 				if err == io.EOF || errors.Is(err, net.ErrClosed) {
 					return
 				}
-				log.Fatal(err.Error())
+				loog.Fatal(err.Error())
 			}
 
 			if frame.MessageType == stratumv2.MessageOpenExtendedMiningChannelSuccess {
@@ -154,12 +154,12 @@ func main() {
 
 	_, err = conn.WriteFrame(setupFrame)
 	if err != nil {
-		log.Fatal(err.Error())
+		loog.Fatal(err.Error())
 	}
 
 	_, err = conn.WriteFrame(openchanFrame)
 	if err != nil {
-		log.Fatal(err.Error())
+		loog.Fatal(err.Error())
 	}
 
 	<-sigs
@@ -170,7 +170,7 @@ func main() {
 		}
 		closemsgPayload, err := closemsg.Encode()
 		if err != nil {
-			log.Fatal(err.Error())
+			loog.Fatal(err.Error())
 		}
 		closemsgFrame := stratumv2.Frame{
 			MessageType:   stratumv2.MessageCloseChannel,
@@ -179,7 +179,7 @@ func main() {
 		}
 		_, err = conn.WriteFrame(closemsgFrame)
 		if err != nil {
-			log.Println(err.Error())
+			loog.Println(err.Error())
 		}
 	}
 
@@ -201,14 +201,14 @@ type Sv2Conn struct {
 
 func (conn *Sv2Conn) WriteFrame(frame stratumv2.Frame) (int, error) {
 	plainBytes, _ := frame.Encode()
-	log.Printf("TX: (%s) %x\n", frame.MessageType, plainBytes)
+	loog.Printf("\x1b[92mTX: (%s) %x\n", frame.MessageType, plainBytes)
 	return conn.send.EncryptFrameToWriter(frame, conn.netConn)
 }
 func (conn *Sv2Conn) ReadFrame() (stratumv2.Frame, error) {
 	frame, err := conn.recv.DecryptFrameFromReader(conn.netConn)
 	if err == nil {
 		plainBytes, _ := frame.Encode()
-		log.Printf("RX: (%s) %x\n", frame.MessageType, plainBytes)
+		loog.Printf("\x1b[94mRX: (%s) %x\n", frame.MessageType, plainBytes)
 	}
 	return frame, err
 }
