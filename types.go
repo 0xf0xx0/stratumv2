@@ -77,6 +77,17 @@ func NewFrameFromParams(messageType MessageType, params Codable) (*Frame, error)
 		Payload:       b,
 	}, nil
 }
+
+// FromParams is a wrapper around [NewFrameFromParams].
+func (f *Frame) FromParams(messageType MessageType, params Codable) error {
+	frame, err := NewFrameFromParams(messageType, params)
+	if err != nil {
+		return err
+	}
+	*f = *frame
+	return nil
+}
+
 func (f *Frame) Encode() ([]byte, error) {
 	if int(f.MessageLength) != len(f.Payload) {
 		return nil, errors.New("Frame.Encode: MessageLength != len(Payload)")
