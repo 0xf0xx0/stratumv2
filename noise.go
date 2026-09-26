@@ -461,7 +461,7 @@ func (cs *CipherState) DecryptWithAd(ad, ciphertext []byte) ([]byte, error) {
 }
 
 // EncryptFrame encrypts a [Frame] to a byte array.
-func (cs *CipherState) EncryptFrame(frame Frame) ([]byte, error) {
+func (cs *CipherState) EncryptFrame(frame *Frame) ([]byte, error) {
 	encoded, err := frame.Encode()
 	if err != nil {
 		return nil, err
@@ -479,7 +479,7 @@ func (cs *CipherState) EncryptFrame(frame Frame) ([]byte, error) {
 }
 
 // EncryptFrameToWriter encrypts a [Frame] to an [io.Writer].
-func (cs *CipherState) EncryptFrameToWriter(frame Frame, w io.Writer) (int, error) {
+func (cs *CipherState) EncryptFrameToWriter(frame *Frame, w io.Writer) (int, error) {
 	encoded, err := frame.Encode()
 	if err != nil {
 		return 0, err
@@ -497,7 +497,7 @@ func (cs *CipherState) EncryptFrameToWriter(frame Frame, w io.Writer) (int, erro
 }
 
 // DecryptFrame decrypts a [Frame] from a byte array.
-func (cs *CipherState) DecryptFrame(f []byte) (Frame, error) {
+func (cs *CipherState) DecryptFrame(f []byte) (*Frame, error) {
 	r := NewBinaryReader(f)
 	frame := Frame{}
 	/// decrypt the header
@@ -505,15 +505,15 @@ func (cs *CipherState) DecryptFrame(f []byte) (Frame, error) {
 	read, err := io.ReadFull(r, header)
 
 	if err != nil {
-		return Frame{}, err
+		return nil, err
 	}
 	if read < NoiseHeaderSize {
-		return Frame{}, errors.New("header ciphertext too short")
+		return nil, errors.New("header ciphertext too short")
 	}
 
 	decrypted, err := cs.DecryptWithAd([]byte{}, header)
 	if err != nil {
-		return Frame{}, fmt.Errorf("error while decrypting header: %s", err)
+		return nil, fmt.Errorf("error while decrypting header: %s", err)
 	}
 
 	frame.DecodeHeader(decrypted)
@@ -524,36 +524,36 @@ func (cs *CipherState) DecryptFrame(f []byte) (Frame, error) {
 	read, err = io.ReadFull(r, payload)
 
 	if err != nil {
-		return Frame{}, err
+		return nil, err
 	}
 	if read < payloadLen {
-		return Frame{}, errors.New("payload ciphertext too short")
+		return nil, errors.New("payload ciphertext too short")
 	}
 	decrypted, err = cs.DecryptWithAd([]byte{}, payload)
 	if err != nil {
-		return Frame{}, fmt.Errorf("error while decrypting payload: %s", err)
+		return nil, fmt.Errorf("error while decrypting payload: %s", err)
 	}
 	frame.Payload = decrypted
-	return frame, nil
+	return &frame, nil
 }
 
 // DecryptFrameFromReader decrypts a [Frame] from an [io.Reader].
-func (cs *CipherState) DecryptFrameFromReader(r io.Reader) (Frame, error) {
+func (cs *CipherState) DecryptFrameFromReader(r io.Reader) (*Frame, error) {
 	frame := Frame{}
 	/// decrypt the header
 	header := make([]byte, NoiseHeaderSize)
 	read, err := io.ReadFull(r, header)
 
 	if err != nil {
-		return Frame{}, err
+		return nil, err
 	}
 	if read < NoiseHeaderSize {
-		return Frame{}, errors.New("header ciphertext too short")
+		return nil, errors.New("header ciphertext too short")
 	}
 
 	decrypted, err := cs.DecryptWithAd([]byte{}, header)
 	if err != nil {
-		return Frame{}, fmt.Errorf("error while decrypting header: %s", err)
+		return nil, fmt.Errorf("error while decrypting header: %s", err)
 	}
 
 	frame.DecodeHeader(decrypted)
@@ -564,17 +564,17 @@ func (cs *CipherState) DecryptFrameFromReader(r io.Reader) (Frame, error) {
 	read, err = io.ReadFull(r, payload)
 
 	if err != nil {
-		return Frame{}, err
+		return nil, err
 	}
 	if read < payloadLen {
-		return Frame{}, errors.New("payload ciphertext too short")
+		return nil, errors.New("payload ciphertext too short")
 	}
 	decrypted, err = cs.DecryptWithAd([]byte{}, payload)
 	if err != nil {
-		return Frame{}, fmt.Errorf("error while decrypting payload: %s", err)
+		return nil, fmt.Errorf("error while decrypting payload: %s", err)
 	}
 	frame.Payload = decrypted
-	return frame, nil
+	return &frame, nil
 }
 
 /// util funcs

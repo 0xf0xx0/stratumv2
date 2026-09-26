@@ -40,6 +40,7 @@ type U24 uint32
 // 3.4
 type Extension = uint16
 
+// TODO: figure out whether we're gonna stick to pointers
 type Frame struct {
 	// Unique identifier of the extension associated with this protocol message.
 	// For messages defined in the core specification
@@ -62,7 +63,7 @@ type Frame struct {
 	TLVs    []TLV  // appended to Payload on .Encode()
 }
 
-func NewFrameFromParams(messageType MessageType, params Codable) (*Frame, error) {
+func NewFrameFromParams(messageType MessageType, extensionType Extension, params Codable) (*Frame, error) {
 	b, err := params.Encode()
 	if err != nil {
 		return nil, err
@@ -73,14 +74,15 @@ func NewFrameFromParams(messageType MessageType, params Codable) (*Frame, error)
 	}
 	return &Frame{
 		MessageType:   messageType,
+		ExtensionType: extensionType,
 		MessageLength: U24(l),
 		Payload:       b,
 	}, nil
 }
 
 // FromParams is a wrapper around [NewFrameFromParams].
-func (f *Frame) FromParams(messageType MessageType, params Codable) error {
-	frame, err := NewFrameFromParams(messageType, params)
+func (f *Frame) FromParams(messageType MessageType, extensionType Extension, params Codable) error {
+	frame, err := NewFrameFromParams(messageType, extensionType, params)
 	if err != nil {
 		return err
 	}

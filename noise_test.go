@@ -233,14 +233,9 @@ func TestFullHandshake(t *testing.T) {
 		DeviceFirmware:        "go-sv2-test",
 		DeviceID:              "bluuchuu",
 	}
-	setupPayload, err := setupmsg.Encode()
+	setupFrame, err := stratumv2.NewFrameFromParams(stratumv2.MessageSetupConnection, stratumv2.ExtensionTypeCore, &setupmsg)
 	if err != nil {
 		panic(err)
-	}
-	setupFrame := stratumv2.Frame{
-		MessageType:   stratumv2.MessageSetupConnection,
-		MessageLength: stratumv2.U24(len(setupPayload)),
-		Payload:       setupPayload,
 	}
 	authority := stratumv2.NewKeypair()
 	static := stratumv2.NewKeypair()

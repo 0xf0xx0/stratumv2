@@ -68,7 +68,7 @@ func main() {
 	}
 
 	/// MAYBE: switch protocols
-	setupmsg := stratumv2.SetupConnection{
+	setupmsg := &stratumv2.SetupConnection{
 		Protocol:              stratumv2.MiningProtocol,
 		MinVersion:            stratumv2.ProtocolVersion,
 		MaxVersion:            stratumv2.ProtocolVersion,
@@ -80,7 +80,7 @@ func main() {
 		DeviceFirmware:        "git.0xf0xx0.eth.limo/0xf0xx0/stratumv2",
 		DeviceID:              "paws",
 	}
-	openchanmsg := stratumv2.OpenExtendedMiningChannel{
+	openchanmsg := &stratumv2.OpenExtendedMiningChannel{
 		OpenStandardMiningChannel: stratumv2.OpenStandardMiningChannel{
 			RequestID:       newReqID(),
 			UserIdentity:    addr.EncodeAddress() + ".sv2-logger",
@@ -89,18 +89,8 @@ func main() {
 		},
 		MinExtranonceSize: 1,
 	}
-	setupPayload, _ := setupmsg.Encode()
-	openchanPayload, _ := openchanmsg.Encode()
-	setupFrame := stratumv2.Frame{
-		MessageType:   stratumv2.MessageSetupConnection,
-		MessageLength: stratumv2.U24(len(setupPayload)),
-		Payload:       setupPayload,
-	}
-	openchanFrame := stratumv2.Frame{
-		MessageType:   stratumv2.MessageOpenExtendedMiningChannel,
-		MessageLength: stratumv2.U24(len(openchanPayload)),
-		Payload:       openchanPayload,
-	}
+	setupFrame, _ := stratumv2.NewFrameFromParams(stratumv2.MessageSetupConnection, stratumv2.ExtensionTypeCore, setupmsg)
+	openchanFrame, _ := stratumv2.NewFrameFromParams(stratumv2.MessageOpenExtendedMiningChannel, stratumv2.ExtensionTypeCore, openchanmsg)
 
 	/// connect
 	clientPaw := &stratumv2.HandshakeState{}
@@ -165,19 +155,11 @@ func main() {
 
 	<-sigs
 	if chanid > -1 {
-		closemsg := stratumv2.CloseChannel{
+		closemsg := &stratumv2.CloseChannel{
 			ChannelID:  uint32(chanid),
 			ReasonCode: "ubisoft go steamworks bye bye, always on drm",
 		}
-		closemsgPayload, err := closemsg.Encode()
-		if err != nil {
-			loog.Fatal(err.Error())
-		}
-		closemsgFrame := stratumv2.Frame{
-			MessageType:   stratumv2.MessageCloseChannel,
-			MessageLength: stratumv2.U24(len(closemsgPayload)),
-			Payload:       closemsgPayload,
-		}
+		closemsgFrame, _ := stratumv2.NewFrameFromParams(stratumv2.MessageCloseChannel, stratumv2.ExtensionTypeCore, closemsg)
 		_, err = conn.WriteFrame(closemsgFrame)
 		if err != nil {
 			loog.Println(err.Error())
@@ -200,12 +182,12 @@ type Sv2Conn struct {
 	send, recv *stratumv2.CipherState
 }
 
-func (conn *Sv2Conn) WriteFrame(frame stratumv2.Frame) (int, error) {
+func (conn *Sv2Conn) WriteFrame(frame *stratumv2.Frame) (int, error) {
 	plainBytes, _ := frame.Encode()
 	loog.Printf("\x1b[92mTX: (%s) %x\n", frame.MessageType, plainBytes)
 	return conn.send.EncryptFrameToWriter(frame, conn.netConn)
 }
-func (conn *Sv2Conn) ReadFrame() (stratumv2.Frame, error) {
+func (conn *Sv2Conn) ReadFrame() (*stratumv2.Frame, error) {
 	frame, err := conn.recv.DecryptFrameFromReader(conn.netConn)
 	if err == nil {
 		plainBytes, _ := frame.Encode()
