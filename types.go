@@ -365,14 +365,29 @@ func (a U256Sequence) Len() int {
 // you likely want to use chainhash.Hash and cast to U256 when needed
 type U256 [32]byte
 
+func (u *U256) Clone() *U256 {
+	clone := &U256{}
+	clone.SetBytes(u[:])
+	return clone
+}
+
+// CloneBytes returns a copy of the U256 as a byte slice.
+func (u *U256) CloneBytes() []byte {
+	makeCopy := make([]byte, 32)
+	copy(makeCopy, u[:])
+	return makeCopy
+}
+
+// SetBytes sets the U256 from a byte slice of length 32.
 func (u *U256) SetBytes(b []byte) error {
-	l := len(b)
-	if l != 32 {
+	if len(b) != 32 {
 		return errors.New("SetBytes: len not 32")
 	}
 	copy((*u)[:], b)
 	return nil
 }
+
+// SetString sets the U256 from a hex string of length 64.
 func (u *U256) SetString(s string) error {
 	if len(s) != 64 {
 		return errors.New("SetString: len not 64")
@@ -385,6 +400,19 @@ func (u *U256) SetString(s string) error {
 	return nil
 }
 
+// byte-reversed hexadecimal, like [chainhash.Hash.String()].
+func (u U256) String() string {
+	// flip
+	for i := range 16 {
+		u[i], u[31-i] = u[31-i], u[i]
+	}
+	return hex.EncodeToString(u[:])
+}
+
+// hash must be less than or equal to the target to be a valid share/block.
+func (target *U256) IsMetBy(hash *U256) bool {
+	return bytes.Compare(target[:], hash[:]) <= 0
+}
 func (u *U256) IsEqual(hash *U256) bool {
 	// if theyre the same pointer or nil
 	if u == hash {
@@ -396,17 +424,35 @@ func (u *U256) IsEqual(hash *U256) bool {
 	return *u == *hash
 }
 
-func (u U256) String() string {
-	// flip
-	for i := range 16 {
-		u[i], u[31-i] = u[31-i], u[i]
+// Add adds addend to u and returns u. any carry past 256 bits is discarded.
+func (u *U256) Add(addend *U256) *U256 {
+	/// TODO: this can be made better right?
+	carry := uint16(0)
+	for i := range 32 {
+		sum := uint16(u[31-i]) + uint16(addend[31-i]) + carry
+		carry = (sum & 0xff00) >> 8
+		// println(u[31-i], addend[31-i], carry, sum)
+		u[31-i] = byte(sum & 0x00ff)
 	}
-	return hex.EncodeToString(u[:])
+	return u
 }
 
-// hash must be less than or equal to the target to be a valid share/block
-func (target *U256) IsMetBy(hash *U256) bool {
-	return bytes.Compare(target[:], hash[:]) <= 0
+// Sub subtracts addend from u and returns u. overflow is the callers responsibility.
+func (u *U256) Sub(addend *U256) *U256 {
+	borrow := uint16(0)
+	for i := range 32 {
+		sample := uint16(u[31-i]) - uint16(addend[31-i])
+		if borrow > 0 {
+			sample--
+		}
+		if sample > 255 {
+			borrow = 0xff
+		} else {
+			borrow = 0
+		}
+		u[31-i] = byte(sample & 0x00ff)
+	}
+	return u
 }
 
 func (t MessageType) String() string {

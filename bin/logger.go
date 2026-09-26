@@ -67,6 +67,7 @@ func main() {
 		addr, _ = address.DecodeAddress(*chainAddr, &chaincfg.MainNetParams)
 	}
 
+	/// MAYBE: switch protocols
 	setupmsg := stratumv2.SetupConnection{
 		Protocol:              stratumv2.MiningProtocol,
 		MinVersion:            stratumv2.ProtocolVersion,

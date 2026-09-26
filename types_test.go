@@ -1,6 +1,8 @@
 package stratumv2_test
 
 import (
+	"encoding/hex"
+	"strconv"
 	"testing"
 
 	"git.0xf0xx0.eth.limo/0xf0xx0/stratumv2"
@@ -29,6 +31,78 @@ func TestU256(t *testing.T) {
 	comp.SetBytes(hexDec("000000000000000000000000000000000000000000000000000000000000ff00"))
 	if target.IsMetBy(comp) {
 		t.Error("should have failed to meet target")
+	}
+
+	/// ensure .String doesnt mutate
+	if target.String() != target.String() {
+		t.Fatal("U256.String() mutates when it shouldnt")
+	}
+}
+func TestU256Add(t *testing.T) {
+	target := &stratumv2.U256{}
+	comp := &stratumv2.U256{}
+	expected := &stratumv2.U256{}
+	/// math
+	target.SetString("00000000000000000000000000000000000000000000000000000000000000ff")
+	comp.SetString("00000000000000000000000000000000000000000000000000000000000000ef")
+	expected.SetString("00000000000000000000000000000000000000000000000000000000000001ee")
+	if !expected.IsEqual(target.Add(comp)) {
+		t.Fatalf("U256 addition failure:\ngot:\n\t%x\nwanted:\n\t%x", target[:], expected[:])
+	}
+	target.SetString("000000000000000000000000000000000000000000000000000000000000ffff")
+	comp.SetString("000000000000000000000000000000000000000000000000000000000000ffff")
+	expected.SetString("000000000000000000000000000000000000000000000000000000000001fffe")
+	if !expected.IsEqual(target.Add(comp)) {
+		t.Fatalf("U256 addition failure:\ngot:\n\t%x\nwanted:\n\t%x", target[:], expected[:])
+	}
+
+	target.SetString("000000000000000000000000000000000000000000000000000000000007b24b")
+	comp.SetString("00000000000000000000000000000000000000000000000000000000001e4958")
+	expected.SetString("000000000000000000000000000000000000000000000000000000000025fba3")
+
+	if !expected.IsEqual(target.Add(comp)) {
+		t.Fatalf("U256 addition failure:\ngot:\n\t%x\nwanted:\n\t%x", target[:], expected[:])
+	}
+	if diff, err := strconv.ParseInt(hex.EncodeToString(target[:]), 16, 64); diff != 0x25fba3 {
+		if err != nil {
+			t.Fatal(err)
+		}
+		t.Fatalf("diff sum not 2489251, got %d", diff)
+	}
+
+	target.SetString("ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff")
+	comp.SetString("000000000000000000000000000000000000000000000000000000000000ffff")
+	expected.SetString("000000000000000000000000000000000000000000000000000000000000fffe")
+
+	if !expected.IsEqual(target.Add(comp)) {
+		t.Fatalf("U256 addition failure:\ngot:\n\t%x\nwanted:\n\t%x", target[:], expected[:])
+	}
+}
+func TestU256Sub(t *testing.T) {
+	target := &stratumv2.U256{}
+	comp := &stratumv2.U256{}
+	expected := &stratumv2.U256{}
+	/// math
+	target.SetString("00000000000000000000000000000000000000000000000000000000000000ff")
+	comp.SetString("00000000000000000000000000000000000000000000000000000000000000ef")
+	expected.SetString("0000000000000000000000000000000000000000000000000000000000000010")
+	if !expected.IsEqual(target.Sub(comp)) {
+		t.Fatalf("U256 subtraction failure:\ngot:\n\t%x\nwanted:\n\t%x", target[:], expected[:])
+	}
+
+	target.SetString("00000000000000000000000000000000000000000000000000000000deadbeef")
+	comp.SetString("00000000000000000000000000000000000000000000000000000000beefdead")
+	expected.SetString("000000000000000000000000000000000000000000000000000000001fbde042")
+	if !expected.IsEqual(target.Sub(comp)) {
+		t.Fatalf("U256 subtraction failure:\ngot:\n\t%x\nwanted:\n\t%x", target[:], expected[:])
+	}
+
+	/// overflow
+	target.SetString("0000000000000000000000000000000000000000000000000000000000000000")
+	comp.SetString("ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff")
+	expected.SetString("0000000000000000000000000000000000000000000000000000000000000001")
+	if !expected.IsEqual(target.Sub(comp)) {
+		t.Fatalf("U256 subtraction failure:\ngot:\n\t%x\nwanted:\n\t%x", target[:], expected[:])
 	}
 }
 
