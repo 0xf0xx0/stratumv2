@@ -19,9 +19,9 @@ const (
 	// Note that if [RequiresVersionRollingFlag] was set in the [SetupConnection.Flags] field,
 	// this bit MUST NOT be set.
 	// Further, if this bit is set, extended jobs MUST NOT indicate support for version rolling.
-	RequiresFixedVersionFlag Flag = 0b01
+	RequiresFixedVersionFlag SuccessFlag = 0b01
 	// Upstream node will not accept opening of a standard channel
-	RequiresExtendedChannelsFlag Flag = 0b10
+	RequiresExtendedChannelsFlag SuccessFlag = 0b10
 )
 
 type Bin32 = []byte

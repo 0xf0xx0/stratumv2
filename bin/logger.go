@@ -72,7 +72,7 @@ func main() {
 		Protocol:              stratumv2.MiningProtocol,
 		MinVersion:            stratumv2.ProtocolVersion,
 		MaxVersion:            stratumv2.ProtocolVersion,
-		Flags:                 stratumv2.RequiresExtendedChannelsFlag,
+		Flags:                 stratumv2.RequiresVersionRollingFlag,
 		EndpointPort:          poolport,
 		EndpointHost:          poolhost,
 		DeviceVendor:          "0xf0xx0",

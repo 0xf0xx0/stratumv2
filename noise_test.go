@@ -225,7 +225,7 @@ func TestFullHandshake(t *testing.T) {
 		Protocol:              stratumv2.MiningProtocol,
 		MinVersion:            stratumv2.ProtocolVersion,
 		MaxVersion:            stratumv2.ProtocolVersion,
-		Flags:                 stratumv2.RequiresExtendedChannelsFlag,
+		Flags:                 stratumv2.RequiresStandardJobsFlag,
 		EndpointPort:          1222,
 		EndpointHost:          "hosty",
 		DeviceVendor:          "0xf0xx0",

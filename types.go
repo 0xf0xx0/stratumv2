@@ -15,6 +15,7 @@ type Protocol uint8
 type MessageType uint8
 type Error = string
 type Flag uint32               // MAYBE: add helpers for setting/clearing bits?
+type SuccessFlag uint32        // MAYBE: add helpers for setting/clearing bits?
 type Pubkey = [32]byte         // X coordinate of Secp256k1 public key (see BIP 340)
 type EllswiftPubkey = [64]byte // ElligatorSwift encoded X coordinate of Secp256k1 [Pubkey] (see BIP 324)
 type Signature = [64]byte      // Schnorr signature on Secp256k1 (see BIP 340)
@@ -61,6 +62,21 @@ type Frame struct {
 	TLVs    []TLV  // appended to Payload on .Encode()
 }
 
+func NewFrameFromParams(messageType MessageType, params Codable) (*Frame, error) {
+	b, err := params.Encode()
+	if err != nil {
+		return nil, err
+	}
+	l := len(b)
+	if l > MaxU24 {
+		return nil, errors.New("Frame.Encode: MessageLength > MaxU24")
+	}
+	return &Frame{
+		MessageType:   messageType,
+		MessageLength: U24(l),
+		Payload:       b,
+	}, nil
+}
 func (f *Frame) Encode() ([]byte, error) {
 	if int(f.MessageLength) != len(f.Payload) {
 		return nil, errors.New("Frame.Encode: MessageLength != len(Payload)")

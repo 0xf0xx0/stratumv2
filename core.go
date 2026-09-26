@@ -53,8 +53,8 @@ func (m *SetupConnection) Decode(b []byte) error {
 }
 
 type SetupConnectionSuccess struct {
-	UsedVersion uint16 // Selected version proposed by the connecting node that the upstream node supports. This version will be used on the connection for the rest of its life.
-	Flags       Flag   // Flags indicating optional protocol features the server supports. Each protocol from protocol field has its own values/flags.
+	UsedVersion uint16      // Selected version proposed by the connecting node that the upstream node supports. This version will be used on the connection for the rest of its life.
+	Flags       SuccessFlag // Flags indicating optional protocol features the server supports. Each protocol from protocol field has its own values/flags.
 }
 
 func (m *SetupConnectionSuccess) Encode() ([]byte, error) {
@@ -67,7 +67,7 @@ func (m *SetupConnectionSuccess) Encode() ([]byte, error) {
 func (m *SetupConnectionSuccess) Decode(b []byte) error {
 	r := NewBinaryReader(b)
 	m.UsedVersion = r.ReadU16()
-	m.Flags = Flag(r.ReadU32())
+	m.Flags = SuccessFlag(r.ReadU32())
 	return r.Error()
 }
 
