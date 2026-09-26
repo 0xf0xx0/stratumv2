@@ -437,11 +437,11 @@ func (u *U256) Add(addend *U256) *U256 {
 	return u
 }
 
-// Sub subtracts addend from u and returns u. overflow is the callers responsibility.
-func (u *U256) Sub(addend *U256) *U256 {
+// Sub subtracts subtrahend from u and returns u. overflow is the callers responsibility.
+func (u *U256) Sub(subtrahend *U256) *U256 {
 	borrow := uint16(0)
 	for i := range 32 {
-		sample := uint16(u[31-i]) - uint16(addend[31-i])
+		sample := uint16(u[31-i]) - uint16(subtrahend[31-i])
 		if borrow > 0 {
 			sample--
 		}
