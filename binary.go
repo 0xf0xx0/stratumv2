@@ -201,7 +201,7 @@ func (bb *BinaryBuilder) AddPubkey(pubkey Pubkey) *BinaryBuilder {
 func (bb *BinaryBuilder) AddEllswiftPubkey(pubkey EllswiftPubkey) *BinaryBuilder {
 	return bb.AddBytes(pubkey[:])
 }
-func (bb *BinaryBuilder) AddSignature(sig [32]byte) *BinaryBuilder {
+func (bb *BinaryBuilder) AddSignature(sig Signature) *BinaryBuilder {
 	if bb.err != nil {
 		return bb
 	}
@@ -508,6 +508,13 @@ func (br *BinaryReader) ReadBytes(length int) []byte {
 		return nil
 	}
 	return br.read(length)
+}
+
+func (br *BinaryReader) ReadSignature() Signature {
+	if br.err != nil {
+		return Signature{}
+	}
+	return Signature(br.read(64))
 }
 
 // [io.Reader] impl

@@ -23,6 +23,7 @@ type Signature = [64]byte      // Schnorr signature on Secp256k1 (see BIP 340)
 // During the handshake, initiator receives [SIGNATURE_NOISE_MESSAGE] and server's static public key.
 // These parts make up a `Certificate` signed by an authority whose public key is generally known (for example from pool's website).
 // Initiator confirms the identity of the server by verifying the signature in the certificate.
+/* TODO: remove? its not used :\ SIGNATURE_NOISE_MESSAGE does it all
 type Certificate struct {
 	Version         uint16 // Version of the certificate format
 	ValidFrom       uint32 // Validity start time (unix timestamp)
@@ -31,7 +32,7 @@ type Certificate struct {
 	AuthorityPubKey Pubkey
 	Signature       Signature
 }
-
+*/
 // U24 is the set of all unsigned 24-bit integers.
 // Range: 0 through 16777215.
 // The top byte gets dropped during encoding.

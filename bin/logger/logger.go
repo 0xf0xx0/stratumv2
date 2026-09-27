@@ -6,16 +6,15 @@ import (
 	"errors"
 	"flag"
 	"io"
-	"log"
 	"net"
 	"net/netip"
 	"os"
 	"os/signal"
 	"strconv"
 	"syscall"
-	"time"
 
 	"git.0xf0xx0.eth.limo/0xf0xx0/stratumv2"
+	"git.0xf0xx0.eth.limo/0xf0xx0/stratumv2/bin/shared"
 	"github.com/btcsuite/btcd/address/v2"
 	"github.com/btcsuite/btcd/chaincfg/v2"
 )
@@ -34,7 +33,7 @@ var (
 		s.SetString("00000000FFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFF")
 		return s
 	}()
-	loog = log.New(os.Stdout, "\x1b[0m", log.Lmicroseconds|log.LUTC)
+	loog = shared.Logger
 )
 var (
 	reqid  = uint32(0)
@@ -104,10 +103,10 @@ func main() {
 	if err != nil {
 		loog.Fatal(err.Error())
 	}
-	conn := &Sv2Conn{
-		netConn: rawConn,
-		send:    send,
-		recv:    recv,
+	conn := &shared.Sv2Conn{
+		NetConn: rawConn,
+		Send:    send,
+		Recv:    recv,
 	}
 
 	if authkey != "" {
@@ -174,51 +173,4 @@ func main() {
 func newReqID() uint32 {
 	reqid++
 	return reqid
-}
-
-// wrapper to enc/dec and log frames
-type Sv2Conn struct {
-	netConn    net.Conn
-	send, recv *stratumv2.CipherState
-}
-
-func (conn *Sv2Conn) WriteFrame(frame *stratumv2.Frame) (int, error) {
-	plainBytes, _ := frame.Encode()
-	loog.Printf("\x1b[92mTX: (%s) %x\n", frame.MessageType, plainBytes)
-	return conn.send.EncryptFrameToWriter(frame, conn.netConn)
-}
-func (conn *Sv2Conn) ReadFrame() (*stratumv2.Frame, error) {
-	frame, err := conn.recv.DecryptFrameFromReader(conn.netConn)
-	if err == nil {
-		plainBytes, _ := frame.Encode()
-		loog.Printf("\x1b[94mRX: (%s) %x\n", frame.MessageType, plainBytes)
-	}
-	return frame, err
-}
-
-/// net.Conn impl
-
-func (conn *Sv2Conn) Write(b []byte) (int, error) {
-	return conn.netConn.Write(b)
-}
-func (conn *Sv2Conn) Read(b []byte) (int, error) {
-	return conn.netConn.Read(b)
-}
-func (conn *Sv2Conn) Close() error {
-	return conn.netConn.Close()
-}
-func (conn *Sv2Conn) LocalAddr() net.Addr {
-	return conn.netConn.LocalAddr()
-}
-func (conn *Sv2Conn) RemoteAddr() net.Addr {
-	return conn.netConn.RemoteAddr()
-}
-func (conn *Sv2Conn) SetDeadline(t time.Time) error {
-	return conn.netConn.SetDeadline(t)
-}
-func (conn *Sv2Conn) SetReadDeadline(t time.Time) error {
-	return conn.netConn.SetReadDeadline(t)
-}
-func (conn *Sv2Conn) SetWriteDeadline(t time.Time) error {
-	return conn.netConn.SetWriteDeadline(t)
 }

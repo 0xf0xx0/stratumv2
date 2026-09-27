@@ -20,10 +20,10 @@ import (
 
 // guhhhhhhhhhhhhhhhhhhhhhhhhhhh
 type SIGNATURE_NOISE_MESSAGE struct {
-	Version       uint16 // Version of the certificate format
-	ValidFrom     uint32 // Validity start time (unix timestamp)
-	NotValidAfter uint32 // Signature is invalid after this point in time (unix timestamp)
-	Signature     []byte // Certificate signature
+	Version       uint16    // Version of the certificate format
+	ValidFrom     uint32    // Validity start time (unix timestamp)
+	NotValidAfter uint32    // Signature is invalid after this point in time (unix timestamp)
+	Signature     Signature // Certificate signature
 }
 
 func (m *SIGNATURE_NOISE_MESSAGE) Decode(data []byte) error {
@@ -34,8 +34,8 @@ func (m *SIGNATURE_NOISE_MESSAGE) Decode(data []byte) error {
 	m.Version = r.ReadU16()
 	m.ValidFrom = r.ReadU32()
 	m.NotValidAfter = r.ReadU32()
-	m.Signature = r.ReadBytes(64)
-	return nil
+	m.Signature = r.ReadSignature()
+	return r.Error()
 }
 func (m *SIGNATURE_NOISE_MESSAGE) Encode() ([]byte, error) {
 	return NewBinaryBuilder().
@@ -43,7 +43,7 @@ func (m *SIGNATURE_NOISE_MESSAGE) Encode() ([]byte, error) {
 		AddU16(m.Version).
 		AddU32(m.ValidFrom).
 		AddU32(m.NotValidAfter).
-		AddBytes(m.Signature).
+		AddSignature(m.Signature).
 		Bytes()
 }
 func (m *SIGNATURE_NOISE_MESSAGE) EncodeNoSig() ([]byte, error) {
@@ -153,7 +153,7 @@ func VerifyServerCertificate(cert *SIGNATURE_NOISE_MESSAGE, authorityPubkey, sta
 	if err != nil {
 		return false, err
 	}
-	sig, err := schnorr.ParseSignature(cert.Signature)
+	sig, err := schnorr.ParseSignature(cert.Signature[:])
 	if err != nil {
 		return false, err
 	}
@@ -273,7 +273,7 @@ func (hs *HandshakeState) PerformHandshakeInitiator(rw io.ReadWriter) (send, rec
 
 // PerformHandshakeResponder responds to a handshake initiated by a remote party.
 // NOTE: remember to sign signedCert!
-// [NewAuthoritySignature] is this packages helper
+// [NewSignedCertificate] is this packages helper
 func (hs *HandshakeState) PerformHandshakeResponder(rw io.ReadWriter, signedCert *SIGNATURE_NOISE_MESSAGE, staticKeys *Keypair) (recv, send *CipherState, err error) {
 	recv = &CipherState{}
 	send = &CipherState{}
@@ -604,46 +604,6 @@ func PlainTextLenToCipherTextLen(plainTextLen int) int {
 	return plainTextLen/MaxPlaintextChunkSize*MaxNoiseFrameSize + rem
 }
 
-func SerializeAuthorityKey(pubkey Pubkey) string {
-	/// NOTE: workaround for checkencode only accepting 1 version byte
-	/// sv2 wants uint16 prefix of [1, 0], so prefix the 0 to the pubkey and send
-	/// 1 to checkencode to get the correct output
-	pfx := []byte{0}
-	return base58.CheckEncode(append(pfx, pubkey[:]...), byte(1))
-}
-func DeserializeAuthorityKey(pubkey string) ([]byte, error) {
-	decoded, version, err := base58.CheckDecode(pubkey)
-	if err != nil {
-		return nil, err
-	}
-	if version != 1 || decoded[0] != 0 {
-		return nil, errors.New("invalid pubkey base58check version, not [1, 0]")
-	}
-	return decoded[1:], nil
-}
-
-// create and sign a [SIGNATURE_NOISE_MESSAGE]
-// copied from public-pool
-func NewAuthoritySignature(authorityPrivkey *btcec.PrivateKey, staticPubkey Pubkey, validFrom, notValidAfter uint32) (*SIGNATURE_NOISE_MESSAGE, error) {
-	m := &SIGNATURE_NOISE_MESSAGE{
-		Version:       CertificateFormatVersion,
-		ValidFrom:     validFrom,
-		NotValidAfter: notValidAfter,
-	}
-	buf, err := m.EncodeNoSig()
-	if err != nil {
-		return nil, err
-	}
-	buf = append(buf, staticPubkey[:]...)
-	hash := sha256.Sum256(buf)
-	sig, err := schnorr.Sign(authorityPrivkey, hash[:])
-	if err != nil {
-		return nil, err
-	}
-	m.Signature = sig.Serialize()
-	return m, nil
-}
-
 func HmacHash(key, data []byte) []byte {
 	hash := hmac.New(sha256.New, key)
 	hash.Write(data)
@@ -670,6 +630,7 @@ func TaggedHash(a, b, c []byte) []byte {
 	hash.Write(c)
 	return hash.Sum(nil)[:]
 }
+
 func handshakeInit() ([]byte, []byte) {
 	hash := sha256.New()
 	hash.Write([]byte(ProtocolName))
@@ -694,4 +655,47 @@ func NewKeypair() *Keypair {
 		auxRand:        auxRand,
 		caseNum:        caseNum,
 	}
+}
+
+// SerializeAuthorityKey serializes a [Pubkey] to a base58check-encoded authority key string.
+func SerializeAuthorityKey(pubkey Pubkey) string {
+	/// NOTE: workaround for checkencode only accepting 1 version byte
+	/// sv2 wants uint16 prefix of [1, 0], so prefix the 0 to the pubkey and send
+	/// 1 to checkencode to get the correct output
+	pfx := []byte{0}
+	return base58.CheckEncode(append(pfx, pubkey[:]...), byte(1))
+}
+
+// DeserializeAuthorityKey deserializes a [Pubkey] from a base58check-encoded authority key string.
+func DeserializeAuthorityKey(authorityKey string) ([]byte, error) {
+	decoded, version, err := base58.CheckDecode(authorityKey)
+	if err != nil {
+		return nil, err
+	}
+	if version != 1 || decoded[0] != 0 {
+		return nil, errors.New("invalid pubkey base58check version, not [1, 0]")
+	}
+	return decoded[1:], nil
+}
+
+// create and sign a [SIGNATURE_NOISE_MESSAGE]
+// copied from public-pool
+func NewSignedCertificate(authorityPrivkey *btcec.PrivateKey, staticPubkey Pubkey, validFrom, notValidAfter uint32) (*SIGNATURE_NOISE_MESSAGE, error) {
+	m := &SIGNATURE_NOISE_MESSAGE{
+		Version:       CertificateFormatVersion,
+		ValidFrom:     validFrom,
+		NotValidAfter: notValidAfter,
+	}
+	buf, err := m.EncodeNoSig()
+	if err != nil {
+		return nil, err
+	}
+	buf = append(buf, staticPubkey[:]...)
+	hash := sha256.Sum256(buf)
+	sig, err := schnorr.Sign(authorityPrivkey, hash[:])
+	if err != nil {
+		return nil, err
+	}
+	m.Signature = Signature(sig.Serialize())
+	return m, nil
 }

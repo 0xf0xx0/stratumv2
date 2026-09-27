@@ -164,7 +164,7 @@ func XElligatorSwift(x *btcec.FieldVal) (*btcec.FieldVal, *btcec.FieldVal, [32]b
 // getXCoord fetches the corresponding public key's x-coordinate given a
 // private key.
 //
-// taken from btcd.
+// taken from btcd, only cause its not exported there
 func getXCoord(privKey *btcec.PrivateKey) *btcec.FieldVal {
 	var result btcec.JacobianPoint
 	btcec.ScalarBaseMultNonConst(&privKey.Key, &result)

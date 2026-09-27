@@ -196,7 +196,7 @@ func TestCertVerification(t *testing.T) {
 	authority := stratumv2.NewKeypair()
 	static := stratumv2.NewKeypair()
 
-	cert, err := stratumv2.NewAuthoritySignature(authority.Private, static.PublicKey(), 20, uint32(time.Now().Unix())+3600)
+	cert, err := stratumv2.NewSignedCertificate(authority.Private, static.PublicKey(), 20, uint32(time.Now().Unix())+3600)
 	if err != nil {
 		t.Errorf("expected no error, got %v", err)
 	}
@@ -240,7 +240,7 @@ func TestFullHandshake(t *testing.T) {
 	authority := stratumv2.NewKeypair()
 	static := stratumv2.NewKeypair()
 
-	cert, err := stratumv2.NewAuthoritySignature(authority.Private, static.PublicKey(), 20, uint32(time.Now().Unix())+3600)
+	cert, err := stratumv2.NewSignedCertificate(authority.Private, static.PublicKey(), 20, uint32(time.Now().Unix())+3600)
 	if err != nil {
 		t.Errorf("expected no error, got %v", err)
 	}
