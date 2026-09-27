@@ -13,11 +13,11 @@ func TestEllswiftDeterminism(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	key2, pubkey2, err := stratumv2.EllswiftCreateFromBytes(key1.Key.Bytes(), auxRand, caseNum)
+	key2, pubkey2, err := stratumv2.EllswiftRecreateFromBytes(key1.Key.Bytes(), auxRand, caseNum)
 	if err != nil {
 		t.Fatal(err)
 	}
-	key3, pubkey3, err := stratumv2.EllswiftCreateFromBytes(key2.Key.Bytes(), auxRand, caseNum)
+	key3, pubkey3, err := stratumv2.EllswiftRecreateFromBytes(key2.Key.Bytes(), auxRand, caseNum)
 	if err != nil {
 		t.Fatal(err)
 	}

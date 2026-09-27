@@ -99,16 +99,16 @@ func (kp *Keypair) Encode() ([]byte, error) {
 
 // Decode decodes a Keypair from storage. Decryption is out of scope.
 func (kp *Keypair) Decode(b []byte) error {
-	var err error
 	br := NewBinaryReader(b)
-	privkey := br.ReadBytes(32)
-	auxRand := br.ReadBytes(32)
-	caseNum := br.ReadU8()
-	err = br.Error()
+	privkey := [32]byte(br.ReadBytes(32))
+	kp.auxRand = [32]byte(br.ReadBytes(32))
+	kp.caseNum = br.ReadU8()
+
+	err := br.Error()
 	if err != nil {
 		return err
 	}
-	kp.Private, kp.publicEllswift, err = EllswiftCreateFromBytes([32]byte(privkey), [32]byte(auxRand), caseNum)
+	kp.Private, kp.publicEllswift, err = EllswiftRecreateFromBytes(privkey, kp.auxRand, kp.caseNum)
 	if err != nil {
 		return err
 	}
@@ -646,7 +646,7 @@ func handshakeInit() ([]byte, []byte) {
 	return initialChainingKey, hashOutput
 }
 
-// generates and returns a fresh secp256k1 [Keypair]
+// NewKeypair generates and returns a fresh secp256k1 [Keypair].
 func NewKeypair() *Keypair {
 	/// only error comes from crypto/rand Read, which never errors
 	priv, ellswiftPub, auxRand, caseNum, _ := EllswiftCreate()
@@ -659,6 +659,23 @@ func NewKeypair() *Keypair {
 		auxRand:        auxRand,
 		caseNum:        caseNum,
 	}
+}
+
+// NewKeypairFrom re-generates a [Keypair] from its components.
+// You usually want [Keypair.Decode].
+func NewKeypairFrom(privKey, auxRand [32]byte, caseNum uint8) (*Keypair, error) {
+	var err error
+	kp := Keypair{}
+	/// only error comes from crypto/rand Read, which never errors
+	kp.Private, kp.publicEllswift, err = EllswiftRecreateFromBytes(privKey, auxRand, caseNum)
+	if err != nil {
+		return nil, err
+	}
+	kp.Public = kp.Private.PubKey()
+	kp.publicX = kp.Public.X().FillBytes(make([]byte, 32))
+	kp.auxRand = auxRand
+	kp.caseNum = caseNum
+	return &kp, nil
 }
 
 // SerializeAuthorityKey serializes a [Pubkey] to a base58check-encoded authority key string.

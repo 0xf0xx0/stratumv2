@@ -33,8 +33,7 @@ func main() {
 	resColl := make([]result, 0, maxResults)
 	for {
 		res := <-resultChan
-		println(fmt.Sprintf("found!\npubkey:\t%s\nprivkey:\t%x\nauxrand:\t%x\ncase:\t%d",
-			res.pubKey, res.privKey, res.auxRand, res.caseNum))
+		println(fmt.Sprintf("found pubkey:\t%s", res.pubKey))
 
 		resColl = append(resColl, res)
 		if len(resColl) == cap(resColl) {
@@ -45,8 +44,10 @@ func main() {
 	fmt.Println("found keys:")
 	totalHashrate := float64(0)
 	for _, res := range resColl {
-		fmt.Printf("pubkey:\t%s\nprivkey:\t%x\nauxrand:\t%x\ncase:\t%d\n",
-			res.pubKey, res.privKey, res.auxRand, res.caseNum)
+		kp, _ := stratumv2.NewKeypairFrom([32]byte(res.privKey), res.auxRand, res.caseNum)
+		encoded, _ := kp.Encode()
+		fmt.Printf("pubkey:\t%s\nprivkey:\t%#x\nauxrand:\t%#x\ncase:\t%d\nencoded Keypair:\t%x\n",
+			res.pubKey, res.privKey, res.auxRand, res.caseNum, encoded)
 		totalHashrate += float64(res.nonce) / res.timeTaken.Seconds()
 	}
 	fmt.Printf("total hashrate: %f h/s", totalHashrate)

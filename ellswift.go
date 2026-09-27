@@ -28,11 +28,11 @@ import (
 	"github.com/btcsuite/btcd/btcec/v2/ellswift"
 )
 
-// EllswiftCreateFromBytes deterministically generates a random private key and
+// EllswiftRecreateFromBytes regenerates a private key and
 // returns that along with the ElligatorSwift encoding of its corresponding public key.
 //
 // taken from btcd.
-func EllswiftCreateFromBytes(privKeyBytes, auxRand [32]byte, caseNum uint8) (*btcec.PrivateKey, [64]byte, error) {
+func EllswiftRecreateFromBytes(privKeyBytes, auxRand [32]byte, caseNum uint8) (*btcec.PrivateKey, [64]byte, error) {
 	privKey, _ := btcec.PrivKeyFromBytes(privKeyBytes[:])
 
 	// Fetch the x-coordinate of the public key.
