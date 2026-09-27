@@ -510,6 +510,18 @@ func (br *BinaryReader) ReadBytes(length int) []byte {
 	return br.read(length)
 }
 
+func (br *BinaryReader) ReadPubkey() Pubkey {
+	if br.err != nil {
+		return Pubkey{}
+	}
+	return Pubkey(br.read(32))
+}
+func (br *BinaryReader) ReadEllswiftPubkey() EllswiftPubkey {
+	if br.err != nil {
+		return EllswiftPubkey{}
+	}
+	return EllswiftPubkey(br.read(64))
+}
 func (br *BinaryReader) ReadSignature() Signature {
 	if br.err != nil {
 		return Signature{}

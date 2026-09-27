@@ -1,5 +1,6 @@
-// a Noise_NX_Secp256k1+EllSwift_ChaChaPoly_SHA256 implementation.
 package stratumv2
+
+// a Noise_NX_Secp256k1+EllSwift_ChaChaPoly_SHA256 implementation.
 
 import (
 	"bytes"

@@ -1,3 +1,4 @@
+// TODO: package description
 package stratumv2
 
 // SetupConnection MUST be the first message sent by the client on the newly opened connection.
