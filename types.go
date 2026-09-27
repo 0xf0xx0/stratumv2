@@ -82,13 +82,28 @@ func NewFrameFromParams(messageType MessageType, extensionType Extension, params
 }
 
 // FromParams is a wrapper around [NewFrameFromParams].
-func (f *Frame) FromParams(messageType MessageType, extensionType Extension, params Codable) error {
+func (f *Frame) FromParams(messageType MessageType, params Codable) error {
+	frame, err := NewFrameFromParams(messageType, ExtensionTypeCore, params)
+	if err != nil {
+		return err
+	}
+	*f = *frame
+	return nil
+}
+
+// FromParams is a wrapper around [NewFrameFromParams].
+func (f *Frame) FromParamsExtension(messageType MessageType, extensionType Extension, params Codable) error {
 	frame, err := NewFrameFromParams(messageType, extensionType, params)
 	if err != nil {
 		return err
 	}
 	*f = *frame
 	return nil
+}
+
+// ToParams decodes the frame parameters to `params`.
+func (f *Frame) ToParams(params Codable) error {
+	return params.Decode(f.Payload)
 }
 
 func (f *Frame) Encode() ([]byte, error) {

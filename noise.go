@@ -18,7 +18,9 @@ import (
 	"golang.org/x/crypto/chacha20poly1305"
 )
 
-// guhhhhhhhhhhhhhhhhhhhhhhhhhhh
+// During the handshake, initiator receives [SIGNATURE_NOISE_MESSAGE] and the servers static public key.
+// These parts make up a `Certificate` signed by an authority whose public key is generally known (for example from the pools website).
+// Initiator confirms the identity of the server by verifying the signature in the certificate.
 type SIGNATURE_NOISE_MESSAGE struct {
 	Version       uint16    // Version of the certificate format
 	ValidFrom     uint32    // Validity start time (unix timestamp)
@@ -70,12 +72,12 @@ func (kp *Keypair) SerializeEllswift() EllswiftPubkey {
 	return kp.publicEllswift
 }
 
-// SerializeEllswiftBytes returns the ElligatorSwift-encoded public key as a byte array.
+// SerializeEllswiftBytes returns the ElligatorSwift-encoded public key as a byte slice.
 func (kp *Keypair) SerializeEllswiftBytes() []byte {
 	return kp.publicEllswift[:]
 }
 
-// PublicKeyBytes returns the public key as a byte array.
+// PublicKeyBytes returns the public key as a byte slice.
 func (kp *Keypair) PublicKeyBytes() []byte {
 	return kp.publicX
 }
@@ -596,6 +598,7 @@ func (cs *CipherState) DecryptFrameFromReader(r io.Reader) (*Frame, error) {
 
 /// util funcs
 
+// PlainTextLenToCipherTextLen converts a plaintext length to its ciphertext length
 func PlainTextLenToCipherTextLen(plainTextLen int) int {
 	rem := plainTextLen % MaxPlaintextChunkSize
 	if rem > 0 {
