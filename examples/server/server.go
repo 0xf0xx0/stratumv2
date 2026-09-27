@@ -15,7 +15,7 @@ import (
 	"syscall"
 
 	"git.0xf0xx0.eth.limo/0xf0xx0/stratumv2"
-	"git.0xf0xx0.eth.limo/0xf0xx0/stratumv2/bin/shared"
+	"git.0xf0xx0.eth.limo/0xf0xx0/stratumv2/examples/shared"
 	"github.com/btcsuite/btcd/address/v2"
 	"github.com/btcsuite/btcd/chaincfg/v2"
 )
