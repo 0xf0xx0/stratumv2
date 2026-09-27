@@ -9,6 +9,11 @@ currently unstable, api will change + no security guarantees (but any issues wil
 # implemented
 - core messages
 - mining protocol
+- noise encryption
+
+# usage
+TODO: docs  
+see [`examples/`](./examples)
 
 # TODO
 - properly implement TLVs
@@ -18,7 +23,3 @@ currently unstable, api will change + no security guarantees (but any issues wil
 - docs
 - tests
     need test messages
-
-## usage
-TODO: docs  
-see [TestHandshake](./noise_test.go) and [TestSetupConnectionEncDec](./core_test.go)
