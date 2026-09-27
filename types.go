@@ -14,25 +14,12 @@ import (
 type Protocol uint8
 type MessageType uint8
 type Error = string
-type Flag uint32               // MAYBE: add helpers for setting/clearing bits?
-type SuccessFlag uint32        // MAYBE: add helpers for setting/clearing bits?
+type Flag uint32               // [SetupConnection] flags
+type SuccessFlag uint32        // [SetupConnectionSuccess] flags
 type Pubkey = [32]byte         // X coordinate of Secp256k1 public key (see BIP 340)
 type EllswiftPubkey = [64]byte // ElligatorSwift encoded X coordinate of Secp256k1 [Pubkey] (see BIP 324)
 type Signature = [64]byte      // Schnorr signature on Secp256k1 (see BIP 340)
 
-// During the handshake, initiator receives [SIGNATURE_NOISE_MESSAGE] and server's static public key.
-// These parts make up a `Certificate` signed by an authority whose public key is generally known (for example from pool's website).
-// Initiator confirms the identity of the server by verifying the signature in the certificate.
-/* TODO: remove? its not used :\ SIGNATURE_NOISE_MESSAGE does it all
-type Certificate struct {
-	Version         uint16 // Version of the certificate format
-	ValidFrom       uint32 // Validity start time (unix timestamp)
-	NotValidAfter   uint32 // Signature is invalid after this point in time (unix timestamp)
-	ServerPubKey    Pubkey
-	AuthorityPubKey Pubkey
-	Signature       Signature
-}
-*/
 // U24 is the set of all unsigned 24-bit integers.
 // Range: 0 through 16777215.
 // The top byte gets dropped during encoding.
@@ -41,7 +28,15 @@ type U24 uint32
 // 3.4
 type Extension = uint16
 
-// TODO: figure out whether we're gonna stick to pointers
+// [Frame] and all messages implement this interface
+// TODO: io.reader interface
+type Codable interface {
+	Encode() ([]byte, error)
+	Decode([]byte) error
+	// MAYBE: String() string for pretty-printing?
+}
+
+// a Frame packages a payload for sending over the wire.
 type Frame struct {
 	// Unique identifier of the extension associated with this protocol message.
 	// For messages defined in the core specification
