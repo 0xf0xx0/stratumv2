@@ -32,7 +32,7 @@ func TestKeypairEncDec(t *testing.T) {
 }
 
 func TestBase58Check(t *testing.T) {
-	raw_ca_public_key := []byte{
+	raw_ca_public_key := stratumv2.Pubkey{
 		118, 99, 112, 0, 151, 156,
 		28, 17, 175, 12, 48, 11, 205,
 		140, 127, 228, 134, 16, 252, 233,
@@ -52,7 +52,7 @@ func TestBase58Check(t *testing.T) {
 	if err != nil {
 		t.Errorf("expected no error, got %v", err)
 	}
-	if string(deserialized) != string(raw_ca_public_key) {
+	if string(deserialized) != string(raw_ca_public_key[:]) {
 		t.Errorf("expected %s, got %s", raw_ca_public_key, deserialized)
 	}
 }

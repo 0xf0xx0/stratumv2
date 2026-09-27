@@ -587,14 +587,12 @@ func PlainTextLenToCipherTextLen(plainTextLen int) int {
 	return plainTextLen/MaxPlaintextChunkSize*MaxNoiseFrameSize + rem
 }
 
-// TODO: authority key struct?
-// TODO: load auth keypair somehow? surely theres a standard...
-func SerializeAuthorityKey(pubkey []byte) string {
+func SerializeAuthorityKey(pubkey Pubkey) string {
 	/// NOTE: workaround for checkencode only accepting 1 version byte
 	/// sv2 wants uint16 prefix of [1, 0], so prefix the 0 to the pubkey and send
 	/// 1 to checkencode to get the correct output
 	pfx := []byte{0}
-	return base58.CheckEncode(append(pfx, pubkey...), byte(1))
+	return base58.CheckEncode(append(pfx, pubkey[:]...), byte(1))
 }
 func DeserializeAuthorityKey(pubkey string) ([]byte, error) {
 	decoded, version, err := base58.CheckDecode(pubkey)
@@ -668,6 +666,17 @@ func handshakeInit() ([]byte, []byte) {
 
 // generates and returns a fresh secp256k1 [Keypair]
 func NewKeypair() *Keypair {
+	/// only error comes from crypto/rand Read, which never errors
+	priv, ellswiftPub, _ := ellswift.EllswiftCreate()
+	pub := priv.PubKey()
+	return &Keypair{
+		Private:        priv,
+		Public:         pub,
+		publicEllswift: ellswiftPub,
+		publicX:        pub.X().FillBytes(make([]byte, 32)),
+	}
+}
+func NewKeypairFromPriv(privKey [32]byte) *Keypair {
 	/// only error comes from crypto/rand Read, which never errors
 	priv, ellswiftPub, _ := ellswift.EllswiftCreate()
 	pub := priv.PubKey()
