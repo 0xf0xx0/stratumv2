@@ -61,6 +61,8 @@ type Keypair struct {
 	Public         *btcec.PublicKey
 	publicX        []byte   // X-coordinate of the public key
 	publicEllswift [64]byte // EllSwift encoded serialization of the X-coordinate of EC point
+	auxRand        [32]byte
+	caseNum        uint8
 }
 
 // SerializeEllswift returns the ElligatorSwift-encoded public key as an [EllswiftPubkey].
@@ -82,19 +84,34 @@ func (kp *Keypair) PublicKeyBytes() []byte {
 func (kp *Keypair) PublicKey() Pubkey {
 	return Pubkey(kp.PublicKeyBytes())
 }
+
+// Encode encodes a Keypair for storage. Encryption is out of scope.
 func (kp *Keypair) Encode() ([]byte, error) {
-	return NewBinaryBuilder().Grow(96).
+	return NewBinaryBuilder().Grow(65).
 		AddBytes(kp.Private.Serialize()).
-		AddBytes(kp.publicEllswift[:]).
+		AddBytes(kp.auxRand[:]).
+		AddU8(kp.caseNum).
 		Bytes()
 }
-func (kp *Keypair) Decode(b []byte) {
+
+// Decode decodes a Keypair from storage. Decryption is out of scope.
+func (kp *Keypair) Decode(b []byte) error {
+	var err error
 	br := NewBinaryReader(b)
 	privkey := br.ReadBytes(32)
-	ellswift := br.ReadBytes(64)
-	kp.Private, kp.Public = btcec.PrivKeyFromBytes(privkey)
+	auxRand := br.ReadBytes(32)
+	caseNum := br.ReadU8()
+	err = br.Error()
+	if err != nil {
+		return err
+	}
+	kp.Private, kp.publicEllswift, err = EllswiftCreateFromBytes([32]byte(privkey), [32]byte(auxRand), caseNum)
+	if err != nil {
+		return err
+	}
+	kp.Public = kp.Private.PubKey()
 	kp.publicX = kp.Public.X().FillBytes(make([]byte, 32))
-	kp.publicEllswift = EllswiftPubkey(ellswift)
+	return nil
 }
 
 // HandshakeState provides methods to initiate and receive handshakes.
@@ -667,23 +684,14 @@ func handshakeInit() ([]byte, []byte) {
 // generates and returns a fresh secp256k1 [Keypair]
 func NewKeypair() *Keypair {
 	/// only error comes from crypto/rand Read, which never errors
-	priv, ellswiftPub, _ := ellswift.EllswiftCreate()
+	priv, ellswiftPub, auxRand, caseNum, _ := EllswiftCreate()
 	pub := priv.PubKey()
 	return &Keypair{
 		Private:        priv,
 		Public:         pub,
 		publicEllswift: ellswiftPub,
 		publicX:        pub.X().FillBytes(make([]byte, 32)),
-	}
-}
-func NewKeypairFromPriv(privKey [32]byte) *Keypair {
-	/// only error comes from crypto/rand Read, which never errors
-	priv, ellswiftPub, _ := ellswift.EllswiftCreate()
-	pub := priv.PubKey()
-	return &Keypair{
-		Private:        priv,
-		Public:         pub,
-		publicEllswift: ellswiftPub,
-		publicX:        pub.X().FillBytes(make([]byte, 32)),
+		auxRand:        auxRand,
+		caseNum:        caseNum,
 	}
 }

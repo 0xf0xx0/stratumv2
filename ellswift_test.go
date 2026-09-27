@@ -2,16 +2,13 @@ package stratumv2_test
 
 import (
 	"bytes"
-	"crypto/rand"
 	"testing"
 
 	"git.0xf0xx0.eth.limo/0xf0xx0/stratumv2"
 )
 
 func TestEllswiftDeterminism(t *testing.T) {
-	privKeyBytes := [32]byte{}
-	rand.Read(privKeyBytes[:])
-	key1, pubkey1, auxRand, caseNum, err := stratumv2.EllswiftCreate(privKeyBytes)
+	key1, pubkey1, auxRand, caseNum, err := stratumv2.EllswiftCreate()
 	if err != nil {
 		t.Fatal(err)
 	}

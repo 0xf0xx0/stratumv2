@@ -1,5 +1,22 @@
 // taken from btcd and tweaked for greater usability
-// TODO: pr back upstream
+// TODO: pr back upstream?
+/* ISC License
+
+Copyright (c) 2013-2025 The btcsuite developers
+Copyright (c) 2015-2016 The Decred developers
+
+Permission to use, copy, modify, and distribute this software for any
+purpose with or without fee is hereby granted, provided that the above
+copyright notice and this permission notice appear in all copies.
+
+THE SOFTWARE IS PROVIDED "AS IS" AND THE AUTHOR DISCLAIMS ALL WARRANTIES
+WITH REGARD TO THIS SOFTWARE INCLUDING ALL IMPLIED WARRANTIES OF
+MERCHANTABILITY AND FITNESS. IN NO EVENT SHALL THE AUTHOR BE LIABLE FOR
+ANY SPECIAL, DIRECT, INDIRECT, OR CONSEQUENTIAL DAMAGES OR ANY DAMAGES
+WHATSOEVER RESULTING FROM LOSS OF USE, DATA OR PROFITS, WHETHER IN AN
+ACTION OF CONTRACT, NEGLIGENCE OR OTHER TORTIOUS ACTION, ARISING OUT OF
+OR IN CONNECTION WITH THE USE OR PERFORMANCE OF THIS SOFTWARE.
+*/
 package stratumv2
 
 import (
@@ -69,16 +86,16 @@ func XElligatorSwiftAux(x *btcec.FieldVal, auxRand [32]byte, caseNum uint8) (*bt
 // and the case number used to generate the `t` value.
 //
 // taken from btcd.
-func EllswiftCreate(randPrivKeyBytes [32]byte) (*btcec.PrivateKey, [64]byte, [32]byte, uint8, error) {
-	// var randPrivKeyBytes [32]byte
+func EllswiftCreate() (*btcec.PrivateKey, [64]byte, [32]byte, uint8, error) {
+	var randPrivKeyBytes [32]byte
 	var auxRand [32]byte
 	var caseNum uint8
 
 	// Generate a random private key
-	// _, err := rand.Read(randPrivKeyBytes[:])
-	// if err != nil {
-	// 	return nil, [64]byte{}, [32]byte{}, 0, err
-	// }
+	_, err := rand.Read(randPrivKeyBytes[:])
+	if err != nil {
+		return nil, [64]byte{}, [32]byte{}, 0, err
+	}
 
 	privKey, _ := btcec.PrivKeyFromBytes(randPrivKeyBytes[:])
 

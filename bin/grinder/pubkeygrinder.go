@@ -5,32 +5,25 @@ package main
 
 import (
 	"context"
-	"crypto/rand"
-	"encoding/binary"
 	"fmt"
-	"math"
-	"os"
-	"runtime/pprof"
-	"strconv"
 	"sync"
 	"time"
 
 	"git.0xf0xx0.eth.limo/0xf0xx0/stratumv2"
-	"github.com/minio/sha256-simd"
 )
 
 func main() {
-	f, _ := os.Create("./cpu.prof")
-	pprof.StartCPUProfile(f)
-	// str := "pogoLo"
-	str := "fox"
+	// f, _ := os.Create("./cpu.prof")
+	// pprof.StartCPUProfile(f)
+	// str := "pogoLo" /// is this even possible lul
+	str := "SV2"
 	strLen := len(str)
-	maxResults := 5
+	maxResults := 1
 	resultChan := make(chan result, maxResults)
 	wg := sync.WaitGroup{}
 	ctx, cancel := context.WithCancel(context.Background())
 	for i := range 4 {
-		pprof.WithLabels(ctx, pprof.Labels("grinder", strconv.Itoa(i)))
+		// pprof.WithLabels(ctx, pprof.Labels("grinder", strconv.Itoa(i)))
 		println("starting goroutine", i)
 		wg.Go(func() {
 			grinder(strLen, str, resultChan, &cancel, ctx, &wg)
@@ -57,7 +50,7 @@ func main() {
 		totalHashrate += float64(res.nonce) / res.timeTaken.Seconds()
 	}
 	fmt.Printf("total hashrate: %f h/s", totalHashrate)
-	pprof.StopCPUProfile()
+	// pprof.StopCPUProfile()
 	wg.Wait()
 }
 
@@ -71,12 +64,8 @@ type result struct {
 }
 
 func grinder(strLen int, str string, resultChan chan result, cancel *context.CancelFunc, ctx context.Context, wg *sync.WaitGroup) {
-	sha := sha256.New()
 	nonce := uint64(0)
-	nonceBytes := make([]byte, 8)
-	privKey := make([]byte, 32)
-	keyRng := make([]byte, 32)
-	rand.Read(keyRng)
+	pubkeyBuf := make([]byte, 32)
 	startTime := time.Now()
 	for {
 		select {
@@ -84,20 +73,11 @@ func grinder(strLen int, str string, resultChan chan result, cancel *context.Can
 			return
 		default:
 		}
-		if nonce == math.MaxUint64 {
-			println("resetting nonce")
-			nonce = 0
-			rand.Read(keyRng)
-		}
-		binary.LittleEndian.PutUint64(nonceBytes, nonce)
-		sha.Write(keyRng)
-		sha.Write(nonceBytes)
-		privKey = sha.Sum(privKey[:0])
-		key, _, auxrand, casenum, err := stratumv2.EllswiftCreate([32]byte(privKey))
+		key, _, auxrand, casenum, err := stratumv2.EllswiftCreate()
 		if err != nil {
 			panic(err)
 		}
-		enc := stratumv2.SerializeAuthorityKey(stratumv2.Pubkey(key.PubKey().X().FillBytes(make([]byte, 32))))
+		enc := stratumv2.SerializeAuthorityKey(stratumv2.Pubkey(key.PubKey().X().FillBytes(pubkeyBuf)))
 		// println(enc)
 		// if strings.ToLower(enc[2:2+strLen]) == str {
 		if enc[2:2+strLen] == str {
@@ -111,6 +91,5 @@ func grinder(strLen int, str string, resultChan chan result, cancel *context.Can
 			}
 		}
 		nonce++
-		sha.Reset()
 	}
 }
