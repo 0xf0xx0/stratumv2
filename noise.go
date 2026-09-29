@@ -128,7 +128,6 @@ type HandshakeState struct {
 
 // VerifyServerCertificate is a wrapper around [VerifyServerCertificate].
 func (hs *HandshakeState) VerifyServerCertificate(authorityPubkey Pubkey) (bool, error) {
-	/// TODO: get X coord from static
 	u := &btcec.FieldVal{}
 	t := &btcec.FieldVal{}
 	u.SetByteSlice(hs.serverStatic[:32])
@@ -137,7 +136,6 @@ func (hs *HandshakeState) VerifyServerCertificate(authorityPubkey Pubkey) (bool,
 	if err != nil {
 		return false, err
 	}
-	// return VerifyServerCertificate(hs.cert, authorityPubkey, hs.serverStatic)
 	return VerifyServerCertificate(hs.cert, authorityPubkey, *serverStaticX.Normalize().Bytes())
 }
 

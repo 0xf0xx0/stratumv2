@@ -11,27 +11,35 @@ import (
 
 func TestU256(t *testing.T) {
 	target := &stratumv2.U256{}
-	comp := &stratumv2.U256{}
+	compar := &stratumv2.U256{}
 
 	target.SetBytes(hexDec("00ff000000000000000000000000000000000000000000000000000000000000"))
 
-	/// meets
-	comp.SetBytes(hexDec("00ff000000000000000000000000000000000000000000000000000000000000"))
-	if !target.IsMetBy(comp) {
+	/// meets (equal)
+	compar.SetBytes(hexDec("00ff000000000000000000000000000000000000000000000000000000000000"))
+	if !target.IsMetBy(compar) {
 		t.Error("should have met target")
 	}
 
-	/// exceeds
-	comp.SetBytes(hexDec("ff00000000000000000000000000000000000000000000000000000000000000"))
-	if !target.IsMetBy(comp) {
+	/// meets (less than)
+	compar.SetBytes(hexDec("000000000000000000000000000000000000000000000000000000000000ff00"))
+	if !target.IsMetBy(compar) {
 		t.Error("should have met target")
 	}
 
 	/// fails
-	comp.SetBytes(hexDec("000000000000000000000000000000000000000000000000000000000000ff00"))
-	if target.IsMetBy(comp) {
+	compar.SetBytes(hexDec("ff00000000000000000000000000000000000000000000000000000000000000"))
+	if target.IsMetBy(compar) {
 		t.Error("should have failed to meet target")
 	}
+
+	/// meets
+	// target.SetString("00000000000000000000000000000000000000000000000000c0f93f06000000")
+	// t.Log(target)
+	// comp.SetString("")
+	// if !target.IsMetBy(comp) {
+	// 	t.Error("should have met target")
+	// }
 
 	/// ensure .String doesnt mutate
 	if target.String() != target.String() {
@@ -46,13 +54,13 @@ func TestU256Add(t *testing.T) {
 	target.SetString("00000000000000000000000000000000000000000000000000000000000000ff")
 	comp.SetString("00000000000000000000000000000000000000000000000000000000000000ef")
 	expected.SetString("00000000000000000000000000000000000000000000000000000000000001ee")
-	if !expected.IsEqual(target.Add(comp)) {
+	if !expected.IsEqual(*target.Add(*comp)) {
 		t.Fatalf("U256 addition failure:\ngot:\n\t%x\nwanted:\n\t%x", target[:], expected[:])
 	}
 	target.SetString("000000000000000000000000000000000000000000000000000000000000ffff")
 	comp.SetString("000000000000000000000000000000000000000000000000000000000000ffff")
 	expected.SetString("000000000000000000000000000000000000000000000000000000000001fffe")
-	if !expected.IsEqual(target.Add(comp)) {
+	if !expected.IsEqual(*target.Add(*comp)) {
 		t.Fatalf("U256 addition failure:\ngot:\n\t%x\nwanted:\n\t%x", target[:], expected[:])
 	}
 
@@ -60,7 +68,7 @@ func TestU256Add(t *testing.T) {
 	comp.SetString("00000000000000000000000000000000000000000000000000000000001e4958")
 	expected.SetString("000000000000000000000000000000000000000000000000000000000025fba3")
 
-	if !expected.IsEqual(target.Add(comp)) {
+	if !expected.IsEqual(*target.Add(*comp)) {
 		t.Fatalf("U256 addition failure:\ngot:\n\t%x\nwanted:\n\t%x", target[:], expected[:])
 	}
 	if diff, err := strconv.ParseInt(hex.EncodeToString(target[:]), 16, 64); diff != 0x25fba3 {
@@ -74,7 +82,7 @@ func TestU256Add(t *testing.T) {
 	comp.SetString("000000000000000000000000000000000000000000000000000000000000ffff")
 	expected.SetString("000000000000000000000000000000000000000000000000000000000000fffe")
 
-	if !expected.IsEqual(target.Add(comp)) {
+	if !expected.IsEqual(*target.Add(*comp)) {
 		t.Fatalf("U256 addition failure:\ngot:\n\t%x\nwanted:\n\t%x", target[:], expected[:])
 	}
 }
@@ -86,14 +94,14 @@ func TestU256Sub(t *testing.T) {
 	target.SetString("00000000000000000000000000000000000000000000000000000000000000ff")
 	comp.SetString("00000000000000000000000000000000000000000000000000000000000000ef")
 	expected.SetString("0000000000000000000000000000000000000000000000000000000000000010")
-	if !expected.IsEqual(target.Sub(comp)) {
+	if !expected.IsEqual(*target.Sub(*comp)) {
 		t.Fatalf("U256 subtraction failure:\ngot:\n\t%x\nwanted:\n\t%x", target[:], expected[:])
 	}
 
 	target.SetString("00000000000000000000000000000000000000000000000000000000deadbeef")
 	comp.SetString("00000000000000000000000000000000000000000000000000000000beefdead")
 	expected.SetString("000000000000000000000000000000000000000000000000000000001fbde042")
-	if !expected.IsEqual(target.Sub(comp)) {
+	if !expected.IsEqual(*target.Sub(*comp)) {
 		t.Fatalf("U256 subtraction failure:\ngot:\n\t%x\nwanted:\n\t%x", target[:], expected[:])
 	}
 
@@ -101,7 +109,7 @@ func TestU256Sub(t *testing.T) {
 	target.SetString("0000000000000000000000000000000000000000000000000000000000000000")
 	comp.SetString("ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff")
 	expected.SetString("0000000000000000000000000000000000000000000000000000000000000001")
-	if !expected.IsEqual(target.Sub(comp)) {
+	if !expected.IsEqual(*target.Sub(*comp)) {
 		t.Fatalf("U256 subtraction failure:\ngot:\n\t%x\nwanted:\n\t%x", target[:], expected[:])
 	}
 }

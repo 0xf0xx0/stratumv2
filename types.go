@@ -8,6 +8,8 @@ import (
 	"errors"
 	"io"
 	"slices"
+
+	"github.com/btcsuite/btcd/chainhash/v2"
 )
 
 // helpers
@@ -440,7 +442,7 @@ func (u *U256) SetString(s string) error {
 	return nil
 }
 
-// byte-reversed hexadecimal, like [chainhash.Hash.String()].
+// String returns a byte-reversed hex string, like [chainhash.Hash.String].
 func (u U256) String() string {
 	// flip
 	for i := range 16 {
@@ -449,23 +451,50 @@ func (u U256) String() string {
 	return hex.EncodeToString(u[:])
 }
 
-// hash must be less than or equal to the target to be a valid share/block.
-func (target *U256) IsMetBy(hash *U256) bool {
-	return bytes.Compare(target[:], hash[:]) <= 0
+// StringNonReversed is like [U256.String] but without the reversing.
+func (u U256) StringNonReversed() string {
+	return hex.EncodeToString(u[:])
 }
-func (u *U256) IsEqual(hash *U256) bool {
-	// if theyre the same pointer or nil
-	if u == hash {
-		return true
+
+// hash must be less than or equal to the target to be a valid share/block.
+func (target *U256) IsMetBy(u256 *U256) bool {
+	return target.Compare(u256) >= 0
+}
+func (target *U256) IsMetByHash(hash *chainhash.Hash) bool {
+	hashU256 := U256(*hash)
+	return target.Compare(&hashU256) >= 0
+}
+
+// Compare returns an integer comparing a U256 to a target U256.
+// it returns 0 if hash == target, 1 if hash < target, and -1 if hash > target.
+// a nil argument is equivalent to an empty slice.
+func (target *U256) Compare(hash *U256) int {
+	if hash == nil {
+		hash = &U256{}
 	}
-	if u == nil || hash == nil {
-		return false
+	if bytes.Equal(target[:], hash[:]) {
+		return 0
 	}
-	return *u == *hash
+	for i := range target {
+		/// find the furst non-zero and non-equal byte in either array
+		if hash[i] != 0 || target[i] != 0 && hash[i] != target[i] {
+			/// if hash is the bigger number it doesnt meet the target
+			if hash[i] <= target[i] {
+				// println(hash.StringNonReversed(), target.StringNonReversed())
+				// println(hash[i], target[i])
+				return 1
+			}
+			return -1
+		}
+	}
+	return -1
+}
+func (u *U256) IsEqual(hash U256) bool {
+	return bytes.Equal(u[:], hash[:])
 }
 
 // Add adds addend to u and returns u. any carry past 256 bits is discarded.
-func (u *U256) Add(addend *U256) *U256 {
+func (u *U256) Add(addend U256) *U256 {
 	/// TODO: this can be made better right?
 	carry := uint16(0)
 	for i := range 32 {
@@ -478,7 +507,7 @@ func (u *U256) Add(addend *U256) *U256 {
 }
 
 // Sub subtracts subtrahend from u and returns u. overflow is the callers responsibility.
-func (u *U256) Sub(subtrahend *U256) *U256 {
+func (u *U256) Sub(subtrahend U256) *U256 {
 	borrow := uint16(0)
 	for i := range 32 {
 		sample := uint16(u[31-i]) - uint16(subtrahend[31-i])
