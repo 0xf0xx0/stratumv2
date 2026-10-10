@@ -22,6 +22,11 @@ type Pubkey = [32]byte         // X coordinate of Secp256k1 public key (see BIP 
 type EllswiftPubkey = [64]byte // ElligatorSwift encoded X coordinate of Secp256k1 [Pubkey] (see BIP 324)
 type Signature = [64]byte      // Schnorr signature on Secp256k1 (see BIP 340)
 
+// type B0_32 []byte // Byte array with 8-bit length prefix L. Unsigned integer, followed by a sequence of L bytes. Allowed range of length is 0 to 32.
+// type B0_255 []byte
+// type B0_64K []byte
+// type B0_16M []byte
+
 // U24 is the set of all unsigned 24-bit integers.
 // Range: 0 through 16777215.
 // The top byte gets dropped during encoding.
@@ -30,7 +35,8 @@ type U24 uint32
 // 3.4
 type Extension = uint16
 
-// [Frame] and all messages implement this interface
+// Codable is the base interface for encoding and decoding sv2 chatter.
+// [Frame] and all messages implement this interface.
 // TODO: io.reader interface
 type Codable interface {
 	Encode() ([]byte, error)

@@ -1,4 +1,4 @@
-// test client
+// test server
 package main
 
 import (
@@ -46,7 +46,7 @@ func main() {
 	signal.Notify(sigs, syscall.SIGINT, syscall.SIGTERM)
 	opts := flag.NewFlagSet("sv2-logger", flag.ExitOnError)
 
-	srv := opts.String("server", "127.0.0.1", "server ip to connect to")
+	srv := opts.String("server", "127.0.0.1", "server ip to listen on")
 	port := opts.Uint("port", 5661, "server port")
 	if opts.Parse(os.Args[1:]) != nil {
 		return
@@ -123,8 +123,4 @@ func main() {
 	}()
 
 	<-sigs
-}
-func newReqID() uint32 {
-	reqid++
-	return reqid
 }

@@ -88,7 +88,7 @@ func (kp *Keypair) PublicKey() Pubkey {
 	return Pubkey(kp.PublicKeyBytes())
 }
 
-// Encode encodes a Keypair for storage. Encryption is out of scope.
+// Encode encodes a Keypair for storage. Encryption is out of scope. Encoding format is (private_key || aux_rand || case_num)
 func (kp *Keypair) Encode() ([]byte, error) {
 	return NewBinaryBuilder().Grow(65).
 		AddBytes(kp.Private.Serialize()).

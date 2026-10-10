@@ -1,3 +1,4 @@
+// code shared between examples
 package shared
 
 import (

@@ -137,6 +137,7 @@ func (bb *BinaryBuilder) AddF32(f float32) *BinaryBuilder {
 	return bb
 }
 
+// AddBin32 appends a byte array with 8-bit length prefix L. Unsigned integer, followed by a sequence of L bytes. Allowed range of length is 0 to 32.
 func (bb *BinaryBuilder) AddBin32(s []byte) *BinaryBuilder {
 	if bb.err != nil {
 		return bb
@@ -150,6 +151,8 @@ func (bb *BinaryBuilder) AddBin32(s []byte) *BinaryBuilder {
 	return bb.Grow(l + 1).
 		AddU8(uint8(l)).AddBytes(s)
 }
+
+// AddBin255 appends a byte array with 8-bit length prefix L. Unsigned integer, followed by a sequence of L bytes. Allowed range of length is 0 to 255.
 func (bb *BinaryBuilder) AddBin255(s []byte) *BinaryBuilder {
 	if bb.err != nil {
 		return bb
@@ -163,6 +166,8 @@ func (bb *BinaryBuilder) AddBin255(s []byte) *BinaryBuilder {
 	return bb.Grow(l + 1).
 		AddU8(uint8(l)).AddBytes(s)
 }
+
+// AddBin64K appends a byte array with 8-bit length prefix L. Unsigned integer, followed by a sequence of L bytes. Allowed range of length is 0 to 65535.
 func (bb *BinaryBuilder) AddBin64K(s []byte) *BinaryBuilder {
 	if bb.err != nil {
 		return bb
@@ -176,6 +181,8 @@ func (bb *BinaryBuilder) AddBin64K(s []byte) *BinaryBuilder {
 	return bb.Grow(l + 2).
 		AddU16(uint16(l)).AddBytes(s)
 }
+
+// AddBin16M appends a byte array with 24-bit length prefix L. Unsigned integer encoded as [U24], followed by a sequence of L bytes. Allowed range of length is 0 to 2^24-1.
 func (bb *BinaryBuilder) AddBin16M(s []byte) *BinaryBuilder {
 	if bb.err != nil {
 		return bb
@@ -224,6 +231,9 @@ func (bb *BinaryBuilder) AddSeq1(things Sequence) *BinaryBuilder {
 		return bb
 	}
 	l := things.Len()
+	if l == 0 {
+		return bb
+	}
 	if l > 1 {
 		bb.err = errors.New("AddSeq1: len > 1")
 		return bb
@@ -273,7 +283,6 @@ func (bb *BinaryBuilder) AddSeq64K(things Sequence) *BinaryBuilder {
 		AddU16(uint16(l)).
 		AddBytes(enc)
 }
-
 func (bb *BinaryBuilder) AddBytes(bin []byte) *BinaryBuilder {
 	if bb.err != nil {
 		return bb

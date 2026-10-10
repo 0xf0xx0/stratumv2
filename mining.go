@@ -24,8 +24,6 @@ const (
 	RequiresExtendedChannelsFlag SuccessFlag = 0b10
 )
 
-type Bin32 = []byte
-
 // This message requests to open a standard channel to the upstream node.
 //
 // After receiving a [SetupConnectionSuccess] message, the client SHOULD respond by opening channels on the connection.
@@ -295,7 +293,7 @@ func (m *CloseChannel) Decode(b []byte) error {
 // (not group channels).
 type SetExtranoncePrefix struct {
 	ChannelID        uint32
-	ExtranoncePrefix Bin32 // Bytes used as implicit first part of extranonce
+	ExtranoncePrefix []byte // Bytes used as implicit first part of extranonce
 }
 
 func (m *SetExtranoncePrefix) Encode() ([]byte, error) {
@@ -356,7 +354,7 @@ type SubmitSharesExtended struct {
 	// Extranonce bytes which need to be added to coinbase to form a fully valid submission
 	// (full coinbase = coinbase_tx_prefix + extranonce_prefix + extranonce + coinbase_tx_suffix).
 	// The size of the provided extranonce MUST be equal to the negotiated extranonce size from channel opening.
-	Extranonce Bin32
+	Extranonce []byte
 }
 
 func (m *SubmitSharesExtended) Encode() ([]byte, error) {
@@ -634,7 +632,7 @@ func (m *SetNewPrevHash) Decode(b []byte) error {
 // Can be sent only on extended or group channel.
 // If the group channel contains standard channels, the server MUST ignore those.
 //
-// [SetupConnection.Flags] MUST contain [REQUIRES_WORK_SELECTION] flag
+// [SetupConnection.Flags] MUST contain [RequiresWorkSelectionFlag]
 // (work selection feature successfully declared).
 //
 // This message signals that JDC expects to be rewarded for working on a Custom Job.
