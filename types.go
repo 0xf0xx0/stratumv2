@@ -483,12 +483,15 @@ func (target *U256) Compare(hash *U256) int {
 	}
 	for i := range target {
 		/// find the furst non-zero and non-equal byte in either array
-		if hash[i] != 0 || target[i] != 0 && hash[i] != target[i] {
+		if hash[i] != 0 || target[i] != 0 {
 			/// if hash is the bigger number it doesnt meet the target
-			if hash[i] <= target[i] {
+			if hash[i] < target[i] {
 				// println(hash.StringNonReversed(), target.StringNonReversed())
 				// println(hash[i], target[i])
 				return 1
+			}
+			if hash[i] == target[i] {
+				return 0
 			}
 			return -1
 		}

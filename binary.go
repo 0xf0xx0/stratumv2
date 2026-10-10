@@ -231,9 +231,6 @@ func (bb *BinaryBuilder) AddSeq1(things Sequence) *BinaryBuilder {
 		return bb
 	}
 	l := things.Len()
-	if l == 0 {
-		return bb
-	}
 	if l > 1 {
 		bb.err = errors.New("AddSeq1: len > 1")
 		return bb
