@@ -9,6 +9,7 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"sync/atomic"
 	"time"
 
 	"github.com/btcsuite/btcd/address/v2/base58"
@@ -407,14 +408,14 @@ func (hs *HandshakeState) ecdh(k *Keypair, remoteKey EllswiftPubkey, initiator b
 // cipher functions using 32-byte encryption key `k` and 8-byte nonce `n`.
 type CipherState struct {
 	k   []byte // encryption key
-	n   uint64
+	n   atomic.Uint64
 	gcm cipher.AEAD
 }
 
 // InitializeKey initializes the encryption key `k` and resets the nonce counter to 0.
 func (cs *CipherState) InitializeKey(k [32]byte) error {
 	cs.k = k[:]
-	cs.n = 0
+	cs.n = atomic.Uint64{}
 	var err error
 	cs.gcm, err = chacha20poly1305.New(cs.k)
 	if err != nil {
@@ -425,20 +426,22 @@ func (cs *CipherState) InitializeKey(k [32]byte) error {
 func (cs *CipherState) getNonce() []byte {
 	/// "...with nonce n encoded as 32 zero bits, followed by a little-endian 64-bit value."
 	nonce := make([]byte, 12)
-	ble.PutUint64(nonce[4:], cs.n)
-	cs.n++
+	ble.PutUint64(nonce[4:], cs.n.Load())
+	cs.n.Add(1)
 	return nonce
 }
 
 // Encrypt encrypts `plaintext`.
 // It only returns an error when nonce space is exhausted (at 2^64).
 // Be sure to call [CipherState.InitializeKey] before, or this will pass through the plaintext.
+// It is safe for concurrent access.
 func (cs *CipherState) Encrypt(plaintext []byte) ([]byte, error) {
 	return cs.EncryptWithAd([]byte{}, plaintext)
 }
 
 // Decrypt decrypts `ciphertext`.
 // It returns an error when decrypt fails or when nonce space is exhausted (at 2^64).
+// It is safe for concurrent access.
 func (cs *CipherState) Decrypt(ciphertext []byte) ([]byte, error) {
 	return cs.DecryptWithAd([]byte{}, ciphertext)
 }
@@ -446,6 +449,7 @@ func (cs *CipherState) Decrypt(ciphertext []byte) ([]byte, error) {
 // EncryptWithAd encrypts `plaintext` with `ad` as additional data.
 // It only returns an error when nonce space is exhausted (at 2^64).
 // Be sure to call [CipherState.InitializeKey] before, or this will pass through the plaintext.
+// It is safe for concurrent access.
 //
 // TODO: make this thread-safe
 // TODO: how do i do security validation lol
@@ -454,7 +458,7 @@ func (cs *CipherState) EncryptWithAd(ad, plaintext []byte) ([]byte, error) {
 		return plaintext, nil
 	}
 	/// noise doesnt reuse nonces and also treats 2^64 as invalid
-	if cs.n == maxNoiseNonce {
+	if cs.n.Load() == maxNoiseNonce {
 		return nil, errors.New("nonce space exhausted")
 	}
 	return cs.gcm.Seal(make([]byte, 0, PlainTextLenToCipherTextLen(len(plaintext))), cs.getNonce(), plaintext, ad), nil
@@ -462,17 +466,18 @@ func (cs *CipherState) EncryptWithAd(ad, plaintext []byte) ([]byte, error) {
 
 // DecryptWithAd decrypts `ciphertext` with `ad` as additional data.
 // It returns an error when decrypt fails or when nonce space is exhausted (at 2^64).
+// It is safe for concurrent access.
 func (cs *CipherState) DecryptWithAd(ad, ciphertext []byte) ([]byte, error) {
 	if len(cs.k) == 0 {
 		return ciphertext, nil
 	}
-	if cs.n == maxNoiseNonce {
+	if cs.n.Load() == maxNoiseNonce {
 		return nil, errors.New("nonce space exhausted")
 	}
 	/// FIXME: why cant we reuse ciphertext here?
 	out, err := cs.gcm.Open(make([]byte, 0, len(ciphertext)), cs.getNonce(), ciphertext, ad)
 	if err != nil {
-		cs.n--
+		cs.n.Add(^uint64(0))
 		return nil, err
 	}
 	return out, nil
