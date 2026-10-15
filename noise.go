@@ -302,7 +302,6 @@ func (hs *HandshakeState) PerformHandshakeResponder(rw io.ReadWriter, signedCert
 	if err != nil {
 		return nil, nil, err
 	}
-	// rw.Read(remoteEphemeral)
 
 	/// "3. calls MixHash(re.public_key)"
 	hs.mixHash(remoteEphemeral)
