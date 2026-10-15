@@ -208,7 +208,10 @@ func (hs *HandshakeState) PerformHandshakeInitiator(rw io.ReadWriter) (send, rec
 	/// 4.5.2.2
 	/// "1. receives NX-handshake part 2 message"
 	pt2 := make([]byte, 234)
-	rw.Read(pt2)
+	_, err = io.ReadFull(rw, pt2)
+	if err != nil {
+		return nil, nil, err
+	}
 	/// "2. interprets first 64 bytes as EllSwift encoded re.public_key"
 	remoteEphemeral := pt2[:64]
 	encryptedStatic := pt2[64:144] /// 80 for static
@@ -295,7 +298,11 @@ func (hs *HandshakeState) PerformHandshakeResponder(rw io.ReadWriter, signedCert
 	/// "1. receives ephemeral public key message (64 bytes plaintext EllSwift encoded public key)
 	///  2. parses received public key as re.public_key"
 	remoteEphemeral := make([]byte, 64)
-	rw.Read(remoteEphemeral)
+	_, err = io.ReadFull(rw, remoteEphemeral)
+	if err != nil {
+		return nil, nil, err
+	}
+	// rw.Read(remoteEphemeral)
 
 	/// "3. calls MixHash(re.public_key)"
 	hs.mixHash(remoteEphemeral)
@@ -304,7 +311,10 @@ func (hs *HandshakeState) PerformHandshakeResponder(rw io.ReadWriter, signedCert
 
 	/// "4. calls DecryptAndHash() on the remaining bytes, which is the empty payload
 	///     (note that k is empty at this point, so this effectively reduces down to MixHash() on empty data)"
-	hs.decryptAndHash([]byte{})
+	_, err = hs.decryptAndHash([]byte{})
+	if err != nil {
+		return nil, nil, err
+	}
 	// println(fmt.Sprintf("[Responder] After DecryptAndHash(empty): h=%x", hs.h))
 
 	/// 4.5.2 Handshake Act 2: NX-handshake part 2
