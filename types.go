@@ -4,9 +4,11 @@ package stratumv2
 
 import (
 	"bytes"
+	"encoding/binary"
 	"encoding/hex"
 	"errors"
 	"io"
+	"math/bits"
 	"slices"
 
 	"github.com/btcsuite/btcd/chainhash/v2"
@@ -478,59 +480,118 @@ func (target *U256) Compare(hash *U256) int {
 	if hash == nil {
 		hash = &U256{}
 	}
-	if bytes.Equal(target[:], hash[:]) {
-		return 0
-	}
-	for i := range target {
-		/// find the furst non-zero and non-equal byte in either array
-		if hash[i] != 0 || target[i] != 0 {
-			/// if hash is the bigger number it doesnt meet the target
-			if hash[i] < target[i] {
-				// println(hash.StringNonReversed(), target.StringNonReversed())
-				// println(hash[i], target[i])
-				return 1
-			}
-			if hash[i] == target[i] {
-				return 0
-			}
-			return -1
-		}
-	}
-	return -1
+	/// big-endian byte order, so plain byte comparison is numeric comparison
+	return bytes.Compare(target[:], hash[:])
 }
 func (u *U256) IsEqual(hash U256) bool {
 	return bytes.Equal(u[:], hash[:])
 }
 
+// toLimbs returns u as four 64-bit limbs in little-endian order
+// (limbs[0] is the least significant limb).
+func (u *U256) toLimbs() (limbs [4]uint64) {
+	for i := range 4 {
+		limbs[i] = binary.BigEndian.Uint64(u[24-8*i : 32-8*i])
+	}
+	return limbs
+}
+
+// fromLimbs sets u from four 64-bit limbs in little-endian order.
+func (u *U256) fromLimbs(limbs [4]uint64) {
+	for i := range 4 {
+		binary.BigEndian.PutUint64(u[24-8*i:32-8*i], limbs[i])
+	}
+}
+
 // Add adds addend to u and returns u. any carry past 256 bits is discarded.
 func (u *U256) Add(addend U256) *U256 {
-	/// TODO: this can be made better right?
-	carry := uint16(0)
-	for i := range 32 {
-		sum := uint16(u[31-i]) + uint16(addend[31-i]) + carry
-		carry = (sum & 0xff00) >> 8
-		// println(u[31-i], addend[31-i], carry, sum)
-		u[31-i] = byte(sum & 0x00ff)
+	x := u.toLimbs()
+	y := addend.toLimbs()
+	var carry uint64
+	for i := range 4 {
+		x[i], carry = bits.Add64(x[i], y[i], carry)
 	}
+	u.fromLimbs(x)
 	return u
 }
 
-// Sub subtracts subtrahend from u and returns u. overflow is the callers responsibility.
+// Sub subtracts subtrahend from u and returns u, wrapping around 2^256 on underflow.
 func (u *U256) Sub(subtrahend U256) *U256 {
-	borrow := uint16(0)
-	for i := range 32 {
-		sample := uint16(u[31-i]) - uint16(subtrahend[31-i])
-		if borrow > 0 {
-			sample--
-		}
-		if sample > 255 {
-			borrow = 0xff
-		} else {
-			borrow = 0
-		}
-		u[31-i] = byte(sample & 0x00ff)
+	x := u.toLimbs()
+	y := subtrahend.toLimbs()
+	var borrow uint64
+	for i := range 4 {
+		x[i], borrow = bits.Sub64(x[i], y[i], borrow)
 	}
+	u.fromLimbs(x)
 	return u
+}
+
+// Mul multiplies u by multiplicand and returns u.
+// The result is taken modulo 2^256: any bits past 256 are discarded.
+func (u *U256) Mul(multiplicand U256) *U256 {
+	a := u.toLimbs()
+	b := multiplicand.toLimbs()
+	var r [4]uint64
+	for i := range 4 {
+		var carry uint64
+		for j := 0; j+i < 4; j++ {
+			hi, lo := bits.Mul64(a[i], b[j])
+			/// accumulate r[i+j] and the running carry into the 128-bit product hi:lo.
+			/// this cannot overflow, since a*b + (2^64-1) + (2^64-1) < 2^128.
+			var c uint64
+			lo, c = bits.Add64(lo, r[i+j], 0)
+			hi, _ = bits.Add64(hi, 0, c)
+			lo, c = bits.Add64(lo, carry, 0)
+			hi, _ = bits.Add64(hi, 0, c)
+			r[i+j] = lo
+			carry = hi
+		}
+		/// any remaining carry lands past 256 bits and is discarded
+	}
+	u.fromLimbs(r)
+	return u
+}
+
+// Div divides u by divisor and returns u holding the quotient (truncated division).
+// It panics if divisor is zero.
+func (u *U256) Div(divisor U256) *U256 {
+	d := divisor.toLimbs()
+	if d == ([4]uint64{}) {
+		panic("U256.Div: division by zero")
+	}
+	n := u.toLimbs()
+	var q, r [4]uint64
+	/// binary long division, one bit at a time from the top
+	for i := 255; i >= 0; i-- {
+		/// r = (r << 1) | bit i of n
+		r[3] = r[3]<<1 | r[2]>>63
+		r[2] = r[2]<<1 | r[1]>>63
+		r[1] = r[1]<<1 | r[0]>>63
+		r[0] = r[0]<<1 | (n[i/64]>>(i%64))&1
+		if cmpLimbs(r, d) >= 0 {
+			var borrow uint64
+			for j := range 4 {
+				r[j], borrow = bits.Sub64(r[j], d[j], borrow)
+			}
+			q[i/64] |= 1 << (i % 64)
+		}
+	}
+	u.fromLimbs(q)
+	return u
+}
+
+// cmpLimbs compares a and b, returning -1, 0, or 1.
+func cmpLimbs(a, b [4]uint64) int {
+	for i := 3; i >= 0; i-- {
+		if a[i] > b[i] {
+			return 1
+		}
+		if a[i] < b[i] {
+			return -1
+		}
+	}
+	return 0
 }
 
 func (t MessageType) String() string {

@@ -2,6 +2,8 @@ package stratumv2_test
 
 import (
 	"encoding/hex"
+	"math/big"
+	"math/rand"
 	"strconv"
 	"testing"
 
@@ -33,7 +35,21 @@ func TestU256(t *testing.T) {
 		t.Error("should have failed to meet target")
 	}
 
+	/// fails (shared nonzero prefix, hash > target)
+	target.SetBytes(hexDec("1000000000000000000000000000000000000000000000000000000000000000"))
+	compar.SetBytes(hexDec("1000000000000000000000000000000000000000000000000000000000000001"))
+	if target.IsMetBy(compar) {
+		t.Error("should have failed to meet target")
+	}
+
+	/// meets (shared nonzero prefix, hash < target)
+	compar.SetBytes(hexDec("1000000000000000000000000000000000000000000000000000000000000000"))
+	if !target.IsMetBy(compar) {
+		t.Error("should have met target")
+	}
+
 	/// meets
+	/// TODO: add .Div
 	// target.SetString("00000000000000000000000000000000000000000000000000c0f93f06000000")
 	// t.Log(target)
 	// comp.SetString("")
@@ -112,6 +128,75 @@ func TestU256Sub(t *testing.T) {
 	if !expected.IsEqual(*target.Sub(*comp)) {
 		t.Fatalf("U256 subtraction failure:\ngot:\n\t%x\nwanted:\n\t%x", target[:], expected[:])
 	}
+}
+
+func TestU256MulDiv(t *testing.T) {
+	rnd := rand.New(rand.NewSource(0x420))
+	modulus := new(big.Int).Lsh(big.NewInt(1), 256)
+
+	pairs := [][2]string{
+		/// zeroes and ones
+		{"0000000000000000000000000000000000000000000000000000000000000000", "0000000000000000000000000000000000000000000000000000000000000001"},
+		{"0000000000000000000000000000000000000000000000000000000000000001", "0000000000000000000000000000000000000000000000000000000000000001"},
+		/// max values
+		{"ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff", "ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff"},
+		{"ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff", "0000000000000000000000000000000000000000000000000000000000000002"},
+		/// powers of two
+		{"8000000000000000000000000000000000000000000000000000000000000000", "0000000000000000000000000000000000000000000000000000000000000002"},
+		{"0000000000000000000000000000000100000000000000000000000000000000", "0000000000000000000000000000000100000000000000000000000000000000"},
+		///  0xdeadbeef * 0x00010001
+		{"00000000000000000000000000000000000000000000000000000000deadbeef", "0000000000000000000000000000000000000000000000000000000000010001"},
+	}
+	/// random values
+	for range 512 {
+		a := &stratumv2.U256{}
+		b := &stratumv2.U256{}
+		rnd.Read(a[:])
+		rnd.Read(b[:])
+		pairs = append(pairs, [2]string{a.StringNonReversed(), b.StringNonReversed()})
+	}
+
+	for _, pair := range pairs {
+		a := &stratumv2.U256{}
+		b := &stratumv2.U256{}
+		if err := a.SetString(pair[0]); err != nil {
+			t.Fatal(err)
+		}
+		if err := b.SetString(pair[1]); err != nil {
+			t.Fatal(err)
+		}
+		aBig := u256ToBig(a)
+		bBig := u256ToBig(b)
+
+		/// mul
+		want := new(big.Int).Mod(new(big.Int).Mul(aBig, bBig), modulus)
+		if got := a.Clone().Mul(*b); !got.IsEqual(*bigToU256(want)) {
+			t.Fatalf("U256 mul failure:\n%s *\n%s =\ngot\n\t%s\nwanted\n\t%s",
+				a.StringNonReversed(), b.StringNonReversed(),
+				got.StringNonReversed(), bigToU256(want).StringNonReversed())
+		}
+
+		/// div
+		if bBig.Sign() != 0 {
+			want := new(big.Int).Quo(aBig, bBig)
+			if got := a.Clone().Div(*b); !got.IsEqual(*bigToU256(want)) {
+				t.Fatalf("U256 div failure:\n%s /\n%s =\ngot\n\t%s\nwanted\n\t%s",
+					a.StringNonReversed(), b.StringNonReversed(),
+					got.StringNonReversed(), bigToU256(want).StringNonReversed())
+			}
+		}
+	}
+}
+
+func TestU256DivByZero(t *testing.T) {
+	defer func() {
+		if recover() == nil {
+			t.Fatal("expected panic on division by zero")
+		}
+	}()
+	one := &stratumv2.U256{}
+	one[31] = 1
+	one.Div(stratumv2.U256{})
 }
 
 // bench set and compare
@@ -193,4 +278,15 @@ func BenchmarkFrameEncode(b *testing.B) {
 			b.Fatal(err.Error())
 		}
 	}
+}
+
+func u256ToBig(u *stratumv2.U256) *big.Int {
+	/// u256 bytes are big-endian
+	return new(big.Int).SetBytes(u[:])
+}
+
+func bigToU256(b *big.Int) *stratumv2.U256 {
+	u := &stratumv2.U256{}
+	b.FillBytes(u[:])
+	return u
 }
