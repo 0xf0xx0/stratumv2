@@ -468,6 +468,8 @@ func (u U256) StringNonReversed() string {
 func (target *U256) IsMetBy(u256 *U256) bool {
 	return target.Compare(u256) >= 0
 }
+
+// see [U256.IsMetBy].
 func (target *U256) IsMetByHash(hash *chainhash.Hash) bool {
 	hashU256 := U256(*hash)
 	return target.Compare(&hashU256) >= 0
@@ -595,13 +597,13 @@ func cmpLimbs(a, b [4]uint64) int {
 }
 
 func (t MessageType) String() string {
-	ty, _ := MessageTypeToString(t)
+	ty, _ := messageTypeToString(t)
 	return ty
 }
 
 // this will be a BITCH to maintain
 // TODO: find better way
-func MessageTypeToString(t MessageType) (string, error) {
+func messageTypeToString(t MessageType) (string, error) {
 	switch t {
 	case MessageAllocateMiningJobToken:
 		return "AllocateMiningJobToken", nil
