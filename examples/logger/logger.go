@@ -1,4 +1,10 @@
 // test client
+// is thius worth expanding?
+// if you want:
+// - template and job protocol support
+// - better interface
+// - manual message sending
+// essentially makin this telnet for sv2
 package main
 
 import (
