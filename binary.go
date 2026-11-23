@@ -21,6 +21,9 @@ type BinaryBuilder struct {
 
 // like [strings.Builder.Grow], but doesnt panic when size is negative or zero
 func (bb *BinaryBuilder) Grow(size int) *BinaryBuilder {
+	if bb.err != nil {
+		return bb
+	}
 	if size <= 0 {
 		return bb
 	}
@@ -41,10 +44,7 @@ func (bb *BinaryBuilder) Grow(size int) *BinaryBuilder {
 // If an error occurred during encoding,
 // the encoded bytes will be returned up the point of the first error along with the error.
 func (bb *BinaryBuilder) Bytes() ([]byte, error) {
-	if bb.err != nil {
-		return bb.data, bb.err
-	}
-	return bb.data, nil
+	return bb.data, bb.err
 }
 
 // Len returns the length of the backing slice.
@@ -223,62 +223,62 @@ func (bb *BinaryBuilder) AddShortTXID(txid [6]byte) *BinaryBuilder {
 	return bb
 }
 
-func (bb *BinaryBuilder) AddOptionT(things Sequence) *BinaryBuilder {
-	return bb.AddSeq1(things)
+// AddOptionT appends a sequence of 0 to 1 `add`-encodable elements. Alias for [AddSeq1].
+//
+//	out = AddOptionT(out, m.MinTime, (*BinaryBuilder).AddU32)
+func AddOptionT[T any](bb *BinaryBuilder, items []T, add func(*BinaryBuilder, T) *BinaryBuilder) *BinaryBuilder {
+	return AddSeq1(bb, items, add)
 }
-func (bb *BinaryBuilder) AddSeq1(things Sequence) *BinaryBuilder {
+
+// AddSeq1 appends a sequence of 0 to 1 items with a U8 length prefix.
+func AddSeq1[T any](bb *BinaryBuilder, items []T, add func(*BinaryBuilder, T) *BinaryBuilder) *BinaryBuilder {
 	if bb.err != nil {
 		return bb
 	}
-	l := things.Len()
+	l := len(items)
 	if l > 1 {
 		bb.err = errors.New("AddSeq1: len > 1")
 		return bb
 	}
-	enc, err := things.Encode()
-	if err != nil {
-		bb.err = err
-		return bb
+	bb.AddU8(uint8(l))
+	for _, item := range items {
+		add(bb, item)
 	}
-	return bb.Grow(len(enc) + 1).
-		AddU8(uint8(l)).
-		AddBytes(enc)
+	return bb
 }
-func (bb *BinaryBuilder) AddSeq255(things Sequence) *BinaryBuilder {
+
+// AddSeq255 appends a sequence of 0 to 255 items with a U8 length prefix.
+func AddSeq255[T any](bb *BinaryBuilder, items []T, add func(*BinaryBuilder, T) *BinaryBuilder) *BinaryBuilder {
 	if bb.err != nil {
 		return bb
 	}
-	l := things.Len()
+	l := len(items)
 	if l > 255 {
 		bb.err = errors.New("AddSeq255: len > 255")
 		return bb
 	}
-	enc, err := things.Encode()
-	if err != nil {
-		bb.err = err
-		return bb
+	bb.AddU8(uint8(l))
+	for _, item := range items {
+		add(bb, item)
 	}
-	return bb.Grow(len(enc) + 1).
-		AddU8(uint8(l)).
-		AddBytes(enc)
+	return bb
 }
-func (bb *BinaryBuilder) AddSeq64K(things Sequence) *BinaryBuilder {
+
+// AddSeq64K appends a sequence of 0 to 65535 items with a U16 length prefix.
+func AddSeq64K[T any](bb *BinaryBuilder, items []T, add func(*BinaryBuilder, T) *BinaryBuilder) *BinaryBuilder {
 	if bb.err != nil {
 		return bb
 	}
-	l := things.Len()
+	l := len(items)
 	if l > 65535 {
 		bb.err = errors.New("AddSeq64K: len > 65535")
 		return bb
 	}
-	enc, err := things.Encode()
-	if err != nil {
-		bb.err = err
-		return bb
+	bb.AddU16(uint16(l))
+	for _, item := range items {
+		add(bb, item)
 	}
-	return bb.Grow(len(enc) + 2).
-		AddU16(uint16(l)).
-		AddBytes(enc)
+	return bb
 }
 func (bb *BinaryBuilder) AddBytes(bin []byte) *BinaryBuilder {
 	if bb.err != nil {
@@ -420,11 +420,15 @@ func (br *BinaryReader) ReadF32() float32 {
 	return math.Float32frombits(ble.Uint32(b))
 }
 
-func (br *BinaryReader) ReadOptionT(dest Sequence) Sequence {
-	return br.ReadSeq1(dest)
+// ReadOptionT reads a sequence of 0 to 1 elements. Alias for [ReadSeq1].
+//
+//	m.MinTime = ReadOptionT(r, (*BinaryReader).ReadU32)
+func ReadOptionT[T any](br *BinaryReader, read func(*BinaryReader) T) []T {
+	return ReadSeq1(br, read)
 }
 
-func (br *BinaryReader) ReadSeq1(dest Sequence) Sequence {
+// ReadSeq1 reads a sequence of 0 to 1 elements with a U8 length prefix.
+func ReadSeq1[T any](br *BinaryReader, read func(*BinaryReader) T) []T {
 	if br.err != nil {
 		return nil
 	}
@@ -433,36 +437,37 @@ func (br *BinaryReader) ReadSeq1(dest Sequence) Sequence {
 		br.err = errors.New("ReadSeq1: len > 1")
 		return nil
 	}
-	n, err := dest.Decode(int(l), br)
-	if err != nil {
-		br.err = err
-		return nil
+	out := make([]T, 0, l)
+	for range l {
+		out = append(out, read(br))
 	}
-	return n
+	return out
 }
-func (br *BinaryReader) ReadSeq255(dest Sequence) Sequence {
+
+// ReadSeq255 reads a sequence of 0 to 255 elements with a U8 length prefix.
+func ReadSeq255[T any](br *BinaryReader, read func(*BinaryReader) T) []T {
 	if br.err != nil {
 		return nil
 	}
 	l := br.ReadU8()
-	n, err := dest.Decode(int(l), br)
-	if err != nil {
-		br.err = err
-		return nil
+	out := make([]T, 0, l)
+	for range l {
+		out = append(out, read(br))
 	}
-	return n
+	return out
 }
-func (br *BinaryReader) ReadSeq64K(dest Sequence) Sequence {
+
+// ReadSeq64K reads a sequence of 0 to 65535 elements with a U16 length prefix.
+func ReadSeq64K[T any](br *BinaryReader, read func(*BinaryReader) T) []T {
 	if br.err != nil {
 		return nil
 	}
 	l := br.ReadU16()
-	n, err := dest.Decode(int(l), br)
-	if err != nil {
-		br.err = err
-		return nil
+	out := make([]T, 0, l)
+	for range l {
+		out = append(out, read(br))
 	}
-	return n
+	return out
 }
 
 func (br *BinaryReader) ReadStr255() string {

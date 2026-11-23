@@ -473,9 +473,9 @@ func (m *NewMiningJob) Encode() ([]byte, error) {
 	out := NewBinaryBuilder().Grow(72)
 
 	out.AddU32(m.ChannelID).
-		AddU32(m.JobID).
-		AddOptionT(U32Sequence(m.MinTime)).
-		AddU32(m.Version).
+		AddU32(m.JobID)
+	out = AddOptionT(out, m.MinTime, (*BinaryBuilder).AddU32)
+	out.AddU32(m.Version).
 		AddU256(m.MerkleRoot)
 
 	return out.Bytes()
@@ -485,8 +485,7 @@ func (m *NewMiningJob) Decode(b []byte) error {
 
 	m.ChannelID = r.ReadU32()
 	m.JobID = r.ReadU32()
-	/// TODO: this decode is abysmal :\
-	m.MinTime = []uint32(r.ReadOptionT(make(U32Sequence, 0)).(U32Sequence))
+	m.MinTime = ReadOptionT(r, (*BinaryReader).ReadU32)
 	m.Version = r.ReadU32()
 	m.MerkleRoot = r.ReadU256()
 
@@ -565,12 +564,12 @@ func (m *NewExtendedMiningJob) Encode() ([]byte, error) {
 	out := NewBinaryBuilder().Grow(255)
 
 	out.AddU32(m.ChannelID).
-		AddU32(m.JobID).
-		AddOptionT(U32Sequence(m.MinTime)).
-		AddU32(m.Version).
-		AddBool(m.VersionRollingAllowed).
-		AddSeq255(U256Sequence(m.MerklePath)).
-		AddBin64K(m.CoinbasePrefix).
+		AddU32(m.JobID)
+	out = AddOptionT(out, m.MinTime, (*BinaryBuilder).AddU32)
+	out.AddU32(m.Version).
+		AddBool(m.VersionRollingAllowed)
+	out = AddSeq255(out, m.MerklePath, (*BinaryBuilder).AddU256)
+	out.AddBin64K(m.CoinbasePrefix).
 		AddBin64K(m.CoinbaseSuffix)
 
 	return out.Bytes()
@@ -580,10 +579,10 @@ func (m *NewExtendedMiningJob) Decode(b []byte) error {
 
 	m.ChannelID = r.ReadU32()
 	m.JobID = r.ReadU32()
-	m.MinTime = []uint32(r.ReadOptionT(U32Sequence{}).(U32Sequence))
+	m.MinTime = ReadOptionT(r, (*BinaryReader).ReadU32)
 	m.Version = r.ReadU32()
 	m.VersionRollingAllowed = r.ReadBool()
-	m.MerklePath = []U256(r.ReadSeq255(U256Sequence{}).(U256Sequence))
+	m.MerklePath = ReadSeq255(r, (*BinaryReader).ReadU256)
 	m.CoinbasePrefix = r.ReadBin64K()
 	m.CoinbaseSuffix = r.ReadBin64K()
 
@@ -678,8 +677,8 @@ func (m *SetCustomMiningJob) Encode() ([]byte, error) {
 		AddBin255(m.CoinbasePrefix).
 		AddU32(m.CoinbaseSequence).
 		AddBin64K(coinbaseOutputs).
-		AddU32(m.CoinbaseLocktime).
-		AddSeq255(U256Sequence(m.MerklePath))
+		AddU32(m.CoinbaseLocktime)
+	out = AddSeq255(out, m.MerklePath, (*BinaryBuilder).AddU256)
 	return out.Bytes()
 }
 func (m *SetCustomMiningJob) Decode(b []byte) error {
@@ -815,17 +814,14 @@ type SetGroupChannel struct {
 
 func (m *SetGroupChannel) Encode() ([]byte, error) {
 	out := NewBinaryBuilder()
-	return out.Grow(32).AddU32(m.GroupChannelID).
-		AddSeq64K(U32Sequence(m.ChannelIDs)).Bytes()
+	out.Grow(32).AddU32(m.GroupChannelID)
+	out = AddSeq64K(out, m.ChannelIDs, (*BinaryBuilder).AddU32)
+	return out.Bytes()
 }
 func (m *SetGroupChannel) Decode(b []byte) error {
 	r := NewBinaryReader(b)
 
 	m.GroupChannelID = r.ReadU32()
-	l := r.ReadU16()
-	m.ChannelIDs = make([]uint32, 0, l)
-	for range l {
-		m.ChannelIDs = append(m.ChannelIDs, r.ReadU32())
-	}
+	m.ChannelIDs = ReadSeq64K(r, (*BinaryReader).ReadU32)
 	return r.Error()
 }

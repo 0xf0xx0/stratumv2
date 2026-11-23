@@ -78,6 +78,20 @@ const (
 	MessagePushSolution                      MessageType = 0x60
 )
 
+// Template Distribution Protocol
+const (
+	MessageCoinbaseOutputConstraints     MessageType = 0x70
+	MessageNewTemplate                   MessageType = 0x71
+	MessageTemplateSetNewPrevHash        MessageType = 0x72
+	MessageRequestTransactionData        MessageType = 0x73
+	MessageRequestTransactionDataSuccess MessageType = 0x74
+	MessageRequestTransactionDataError   MessageType = 0x75
+	MessageSubmitSolution                MessageType = 0x76
+)
+
+var MessageTypeToString = map[MessageType]string{}
+var StringToMessageType = map[string]MessageType{}
+
 const (
 	UnsupportedFeatureFlagsError Error = "unsupported-feature-flags"
 	UnsupportedProtocolError     Error = "unsupported-protocol"
