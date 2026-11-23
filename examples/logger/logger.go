@@ -88,8 +88,8 @@ func main() {
 		},
 		MinExtranonceSize: 1,
 	}
-	setupFrame, _ := stratumv2.NewFrameFromParams(stratumv2.MessageSetupConnection, stratumv2.ExtensionTypeCore, setupmsg)
-	openchanFrame, _ := stratumv2.NewFrameFromParams(stratumv2.MessageOpenExtendedMiningChannel, stratumv2.ExtensionTypeCore, openchanmsg)
+	setupFrame, _ := stratumv2.NewFrame(stratumv2.MessageSetupConnection, stratumv2.ExtensionTypeCore, setupmsg)
+	openchanFrame, _ := stratumv2.NewFrame(stratumv2.MessageOpenExtendedMiningChannel, stratumv2.ExtensionTypeCore, openchanmsg)
 
 	/// connect
 	clientPaw := &stratumv2.HandshakeState{}
@@ -158,7 +158,7 @@ func main() {
 			ChannelID:  uint32(chanid),
 			ReasonCode: "ubisoft go steamworks bye bye, always on drm",
 		}
-		closemsgFrame, _ := stratumv2.NewFrameFromParams(stratumv2.MessageCloseChannel, stratumv2.ExtensionTypeCore, closemsg)
+		closemsgFrame, _ := stratumv2.NewFrame(stratumv2.MessageCloseChannel, stratumv2.ExtensionTypeCore, closemsg)
 		_, err = conn.WriteFrame(closemsgFrame)
 		if err != nil {
 			loog.Println(err.Error())

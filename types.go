@@ -17,9 +17,9 @@ import (
 // helpers
 type Protocol uint8
 type MessageType uint8
-type Error = string
-type Flag uint32               // [MessageSetupConnection] and [MessageSetupConnectionError] flags
-type SuccessFlag uint32        // [MessageSetupConnectionSuccess] flags
+type Error = string            // protocol errors
+type Flag uint32               // [SetupConnection] and [SetupConnectionError] flags
+type SuccessFlag uint32        // [SetupConnectionSuccess] flags
 type Pubkey = [32]byte         // X coordinate of Secp256k1 public key (see BIP 340)
 type EllswiftPubkey = [64]byte // ElligatorSwift encoded X coordinate of Secp256k1 [Pubkey] (see BIP 324)
 type Signature = [64]byte      // Schnorr signature on Secp256k1 (see BIP 340)
@@ -70,7 +70,7 @@ type Frame struct {
 	TLVs    []TLV  // appended to Payload on .Encode()
 }
 
-func NewFrameFromParams(messageType MessageType, extensionType Extension, params Codable) (*Frame, error) {
+func NewFrame(messageType MessageType, extensionType Extension, params Codable) (*Frame, error) {
 	b, err := params.Encode()
 	if err != nil {
 		return nil, err
@@ -87,9 +87,9 @@ func NewFrameFromParams(messageType MessageType, extensionType Extension, params
 	}, nil
 }
 
-// FromParams is a wrapper around [NewFrameFromParams].
+// FromParams is a wrapper around [NewFrame].
 func (f *Frame) FromParams(messageType MessageType, params Codable) error {
-	frame, err := NewFrameFromParams(messageType, ExtensionTypeCore, params)
+	frame, err := NewFrame(messageType, ExtensionTypeCore, params)
 	if err != nil {
 		return err
 	}
@@ -97,9 +97,9 @@ func (f *Frame) FromParams(messageType MessageType, params Codable) error {
 	return nil
 }
 
-// FromParams is a wrapper around [NewFrameFromParams].
+// FromParams is a wrapper around [NewFrame].
 func (f *Frame) FromParamsExtension(messageType MessageType, extensionType Extension, params Codable) error {
-	frame, err := NewFrameFromParams(messageType, extensionType, params)
+	frame, err := NewFrame(messageType, extensionType, params)
 	if err != nil {
 		return err
 	}
@@ -253,14 +253,14 @@ func (t *TLV) Decode(b []byte) error {
 // you likely want to use chainhash.Hash and cast to U256 when needed
 type U256 [32]byte
 
-func (u *U256) Clone() *U256 {
-	clone := &U256{}
+func (u U256) Clone() U256 {
+	clone := U256{}
 	clone.SetBytes(u[:])
 	return clone
 }
 
 // CloneBytes returns a copy of the U256 as a byte slice.
-func (u *U256) CloneBytes() []byte {
+func (u U256) CloneBytes() []byte {
 	makeCopy := make([]byte, 32)
 	copy(makeCopy, u[:])
 	return makeCopy
@@ -303,33 +303,27 @@ func (u U256) StringNonReversed() string {
 }
 
 // hash must be less than or equal to the target to be a valid share/block.
-func (target *U256) IsMetBy(u256 *U256) bool {
+func (target U256) IsMetBy(u256 U256) bool {
 	return target.Compare(u256) >= 0
 }
 
 // see [U256.IsMetBy].
-func (target *U256) IsMetByHash(hash *chainhash.Hash) bool {
-	hashU256 := U256(*hash)
-	return target.Compare(&hashU256) >= 0
+func (target U256) IsMetByHash(hash chainhash.Hash) bool {
+	return target.Compare(U256(hash)) >= 0
 }
 
 // Compare returns an integer comparing a U256 to a target U256.
 // it returns 0 if hash == target, 1 if hash < target, and -1 if hash > target.
-// a nil argument is equivalent to an empty slice.
-func (target *U256) Compare(hash *U256) int {
-	if hash == nil {
-		hash = &U256{}
-	}
-	/// big-endian byte order, so plain byte comparison is numeric comparison
+func (target U256) Compare(hash U256) int {
 	return bytes.Compare(target[:], hash[:])
 }
-func (u *U256) IsEqual(hash U256) bool {
+func (u U256) IsEqual(hash U256) bool {
 	return bytes.Equal(u[:], hash[:])
 }
 
 // toLimbs returns u as four 64-bit limbs in little-endian order
 // (limbs[0] is the least significant limb).
-func (u *U256) toLimbs() (limbs [4]uint64) {
+func (u U256) toLimbs() (limbs [4]uint64) {
 	for i := range 4 {
 		limbs[i] = binary.BigEndian.Uint64(u[24-8*i : 32-8*i])
 	}
@@ -343,33 +337,36 @@ func (u *U256) fromLimbs(limbs [4]uint64) {
 	}
 }
 
-// Add adds addend to u and returns u. any carry past 256 bits is discarded.
-func (u *U256) Add(addend U256) *U256 {
+// Add adds addend to u and returns a new U256. any carry past 256 bits is discarded.
+func (u U256) Add(addend U256) U256 {
 	x := u.toLimbs()
 	y := addend.toLimbs()
 	var carry uint64
 	for i := range 4 {
 		x[i], carry = bits.Add64(x[i], y[i], carry)
 	}
-	u.fromLimbs(x)
-	return u
+	res := U256{}
+	res.fromLimbs(x)
+	return res
 }
 
-// Sub subtracts subtrahend from u and returns u, wrapping around 2^256 on underflow.
-func (u *U256) Sub(subtrahend U256) *U256 {
+// Sub subtracts subtrahend from u and returns a new U256, wrapping around 2^256 on underflow.
+func (u U256) Sub(subtrahend U256) U256 {
+	res := U256{}
 	x := u.toLimbs()
 	y := subtrahend.toLimbs()
 	var borrow uint64
 	for i := range 4 {
 		x[i], borrow = bits.Sub64(x[i], y[i], borrow)
 	}
-	u.fromLimbs(x)
-	return u
+	res.fromLimbs(x)
+	return res
 }
 
-// Mul multiplies u by multiplicand and returns u.
+// Mul multiplies u by multiplicand and returns a new U256.
 // The result is taken modulo 2^256: any bits past 256 are discarded.
-func (u *U256) Mul(multiplicand U256) *U256 {
+func (u U256) Mul(multiplicand U256) U256 {
+	res := U256{}
 	a := u.toLimbs()
 	b := multiplicand.toLimbs()
 	var r [4]uint64
@@ -389,13 +386,14 @@ func (u *U256) Mul(multiplicand U256) *U256 {
 		}
 		/// any remaining carry lands past 256 bits and is discarded
 	}
-	u.fromLimbs(r)
-	return u
+	res.fromLimbs(r)
+	return res
 }
 
-// Div divides u by divisor and returns u holding the quotient (truncated division).
+// Div divides u by divisor and returns a new U256 holding the quotient (truncated division).
 // It panics if divisor is zero.
-func (u *U256) Div(divisor U256) *U256 {
+func (u U256) Div(divisor U256) U256 {
+	res := U256{}
 	d := divisor.toLimbs()
 	if d == ([4]uint64{}) {
 		panic("U256.Div: division by zero")
@@ -417,8 +415,8 @@ func (u *U256) Div(divisor U256) *U256 {
 			q[i/64] |= 1 << (i % 64)
 		}
 	}
-	u.fromLimbs(q)
-	return u
+	res.fromLimbs(q)
+	return res
 }
 
 // cmpLimbs compares a and b, returning -1, 0, or 1.
@@ -435,84 +433,6 @@ func cmpLimbs(a, b [4]uint64) int {
 }
 
 func (t MessageType) String() string {
-	ty, _ := messageTypeToString(t)
+	ty, _ := MessageTypeToString[t]
 	return ty
-}
-
-// this will be a BITCH to maintain
-// TODO: find better way
-func messageTypeToString(t MessageType) (string, error) {
-	switch t {
-	case MessageAllocateMiningJobToken:
-		return "AllocateMiningJobToken", nil
-	case MessageAllocateMiningJobTokenSuccess:
-		return "AllocateMiningJobTokenSuccess", nil
-	case MessageChannelEndpointChanged:
-		return "ChannelEndpointChanged", nil
-	case MessageCloseChannel:
-		return "CloseChannel", nil
-	case MessageDeclareMiningJob:
-		return "DeclareMiningJob", nil
-	case MessageDeclareMiningJobError:
-		return "DeclareMiningJobError", nil
-	case MessageDeclareMiningJobSuccess:
-		return "DeclareMiningJobSuccess", nil
-	case MessageNewExtendedMiningJob:
-		return "NewExtendedMiningJob", nil
-	case MessageNewMiningJob:
-		return "NewMiningJob", nil
-	case MessageOpenExtendedMiningChannel:
-		return "OpenExtendedMiningChannel", nil
-	case MessageOpenExtendedMiningChannelSuccess:
-		return "OpenExtendedMiningChannelSuccess", nil
-	case MessageOpenMiningChannelError:
-		return "OpenMiningChannelError", nil
-	case MessageOpenStandardMiningChannel:
-		return "OpenStandardMiningChannel", nil
-	case MessageOpenStandardMiningChannelSuccess:
-		return "OpenStandardMiningChannelSuccess", nil
-	case MessageProvideMissingTransactions:
-		return "ProvideMissingTransactions", nil
-	case MessageProvideMissingTransactionsSuccess:
-		return "ProvideMissingTransactionsSuccess", nil
-	case MessagePushSolution:
-		return "PushSolution", nil
-	case MessageReconnect:
-		return "Reconnect", nil
-	case MessageReserved:
-		return "Reserved", nil
-	case MessageSetCustomMiningJob:
-		return "SetCustomMiningJob", nil
-	case MessageSetCustomMiningJobError:
-		return "SetCustomMiningJobError", nil
-	case MessageSetCustomMiningJobSuccess:
-		return "SetCustomMiningJobSuccess", nil
-	case MessageSetExtranoncePrefix:
-		return "SetExtranoncePrefix", nil
-	case MessageSetGroupChannel:
-		return "SetGroupChannel", nil
-	case MessageSetNewPrevHash:
-		return "SetNewPrevHash", nil
-	case MessageSetTarget:
-		return "SetTarget", nil
-	case MessageSetupConnection:
-		return "SetupConnection", nil
-	case MessageSetupConnectionError:
-		return "SetupConnectionError", nil
-	case MessageSetupConnectionSuccess:
-		return "SetupConnectionSuccess", nil
-	case MessageSubmitSharesError:
-		return "SubmitSharesError", nil
-	case MessageSubmitSharesExtended:
-		return "SubmitSharesExtended", nil
-	case MessageSubmitSharesStandard:
-		return "SubmitSharesStandard", nil
-	case MessageSubmitSharesSuccess:
-		return "SubmitSharesSuccess", nil
-	case MessageUpdateChannel:
-		return "UpdateChannel", nil
-	case MessageUpdateChannelError:
-		return "UpdateChannelError", nil
-	}
-	return "", errors.New("unknown message type")
 }

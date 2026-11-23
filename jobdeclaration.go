@@ -19,6 +19,19 @@ type AllocateMiningJobToken struct {
 	RequestID    uint32 // Unique identifier for pairing the response.
 }
 
+func (m *AllocateMiningJobToken) Encode() ([]byte, error) {
+	return NewBinaryBuilder().Grow(len(m.UserIdentity) + 5).
+		AddStr255(m.UserIdentity).
+		AddU32(m.RequestID).
+		Bytes()
+}
+func (m *AllocateMiningJobToken) Decode(b []byte) error {
+	r := NewBinaryReader(b)
+	m.UserIdentity = r.ReadStr255()
+	m.RequestID = r.ReadU32()
+	return r.Error()
+}
+
 // The Server MUST NOT change the value of CoinbaseOutputMaxAdditionalSize between
 // [AllocateMiningJobTokenSuccess] messages unless a change in the pool’s configuration actually requires it.
 // Notably, a pool whose required coinbase output space changes regularly SHOULD instead advertise
@@ -57,6 +70,21 @@ type AllocateMiningJobTokenSuccess struct {
 	CoinbaseTxOutputs B0_64K
 }
 
+func (m *AllocateMiningJobTokenSuccess) Encode() ([]byte, error) {
+	return NewBinaryBuilder().Grow(len(m.MiningJobToken) + len(m.CoinbaseTxOutputs) + 7).
+		AddU32(m.RequestID).
+		AddBin255(m.MiningJobToken).
+		AddBin64K(m.CoinbaseTxOutputs).
+		Bytes()
+}
+func (m *AllocateMiningJobTokenSuccess) Decode(b []byte) error {
+	r := NewBinaryReader(b)
+	m.RequestID = r.ReadU32()
+	m.MiningJobToken = r.ReadB0_255()
+	m.CoinbaseTxOutputs = r.ReadB0_64K()
+	return r.Error()
+}
+
 // Only used in Full-Template mode.
 //
 // A request sent by JDC that proposes a selected set of transactions to JDS.
@@ -75,8 +103,31 @@ type DeclareMiningJob struct {
 	// The list MUST be in block order, which is the order of [RequestTransactionDataSuccess.TransactionList].
 	// JDS checks the list against its mempool and requests missing txs via [ProvideMissingTransactions].
 	// Does not include the coinbase transaction (as there is no corresponding full data for it yet).
-	WTxidList  []U256
+	WTxidList  []U256 // SEQ0_64K
 	ExcessData B0_64K // Extra data which the Pool may require to validate the work (as defined in the Template Distribution Protocol).
+}
+
+func (m *DeclareMiningJob) Encode() ([]byte, error) {
+	out := NewBinaryBuilder().Grow(len(m.MiningJobToken) + len(m.CoinbaseTxPrefix) + len(m.CoinbaseTxSuffix) + len(m.ExcessData) + len(m.WTxidList)*32 + 17).
+		AddU32(m.RequestID).
+		AddBin255(m.MiningJobToken).
+		AddU32(m.Version).
+		AddBin64K(m.CoinbaseTxPrefix).
+		AddBin64K(m.CoinbaseTxSuffix)
+	out = AddSeq64K(out, m.WTxidList, (*BinaryBuilder).AddU256)
+	out.AddBin64K(m.ExcessData)
+	return out.Bytes()
+}
+func (m *DeclareMiningJob) Decode(b []byte) error {
+	r := NewBinaryReader(b)
+	m.RequestID = r.ReadU32()
+	m.MiningJobToken = r.ReadB0_255()
+	m.Version = r.ReadU32()
+	m.CoinbaseTxPrefix = r.ReadB0_64K()
+	m.CoinbaseTxSuffix = r.ReadB0_64K()
+	m.WTxidList = ReadSeq64K(r, (*BinaryReader).ReadU256)
+	m.ExcessData = r.ReadB0_64K()
+	return r.Error()
 }
 
 // A response sent by JDS acknowledging some Custom Job declaration.
@@ -94,6 +145,19 @@ type DeclareMiningJobSuccess struct {
 	NewMiningJobToken B0_255 // Unique custom work identifier.
 }
 
+func (m *DeclareMiningJobSuccess) Encode() ([]byte, error) {
+	return NewBinaryBuilder().Grow(len(m.NewMiningJobToken) + 5).
+		AddU32(m.RequestID).
+		AddBin255(m.NewMiningJobToken).
+		Bytes()
+}
+func (m *DeclareMiningJobSuccess) Decode(b []byte) error {
+	r := NewBinaryReader(b)
+	m.RequestID = r.ReadU32()
+	m.NewMiningJobToken = r.ReadB0_255()
+	return r.Error()
+}
+
 // A response sent by JDS rejecting some Custom Job declaration.
 //
 // This SHOULD be a trigger for fallback into some other Pool+JDS or solo mining.
@@ -101,6 +165,21 @@ type DeclareMiningJobError struct {
 	RequestID    uint32 // Identifier of the original request.
 	ErrorCode    string // Human-readable error code(s).
 	ErrorDetails B0_64K // Optional data providing further details to given error.
+}
+
+func (m *DeclareMiningJobError) Encode() ([]byte, error) {
+	return NewBinaryBuilder().Grow(len(m.ErrorCode) + len(m.ErrorDetails) + 4).
+		AddU32(m.RequestID).
+		AddStr255(m.ErrorCode).
+		AddBin64K(m.ErrorDetails).
+		Bytes()
+}
+func (m *DeclareMiningJobError) Decode(b []byte) error {
+	r := NewBinaryReader(b)
+	m.RequestID = r.ReadU32()
+	m.ErrorCode = r.ReadStr255()
+	m.ErrorDetails = r.ReadB0_64K()
+	return r.Error()
 }
 
 // Only used in Full-Template mode.
@@ -116,9 +195,16 @@ type ProvideMissingTransactions struct {
 }
 
 func (m *ProvideMissingTransactions) Encode() ([]byte, error) {
-	out := NewBinaryBuilder().AddU32(m.RequestID)
+	out := NewBinaryBuilder().Grow(4 + len(m.UnknownTxPositionList)*2).AddU32(m.RequestID)
 	out = AddSeq64K(out, m.UnknownTxPositionList, (*BinaryBuilder).AddU16)
 	return out.Bytes()
+}
+
+func (m *ProvideMissingTransactions) Decode(b []byte) error {
+	r := NewBinaryReader(b)
+	m.RequestID = r.ReadU32()
+	m.UnknownTxPositionList = ReadSeq64K(r, (*BinaryReader).ReadU16)
+	return r.Error()
 }
 
 // This is a message to push transactions that the server did not recognize
@@ -130,7 +216,23 @@ type ProvideMissingTransactionsSuccess struct {
 	// Each transaction MUST be relayed exactly as received from the Template Provider
 	// via [RequestTransactionDataSuccess], without parsing or re-encoding;
 	// in practice this is the p2p network serialization, including witness data for SegWit transactions (BIP144).
-	TxList []B0_16M // TODO: SEQ0_64K[B0_16M]
+	TxList []B0_16M // SEQ0_64K
+}
+
+func (m *ProvideMissingTransactionsSuccess) Encode() ([]byte, error) {
+	/// guess tx len
+	/// MAYBE: find median on-chain tx size?
+	out := NewBinaryBuilder().Grow(255*len(m.TxList) + 4).
+		AddU32(m.RequestID)
+	AddSeq64K(out, m.TxList, (*BinaryBuilder).AddBin16M)
+	return out.Bytes()
+}
+
+func (m *ProvideMissingTransactionsSuccess) Decode(b []byte) error {
+	r := NewBinaryReader(b)
+	m.RequestID = r.ReadU32()
+	m.TxList = ReadSeq64K(r, (*BinaryReader).ReadB0_16M)
+	return r.Error()
 }
 
 // Only used in Full-Template mode.
@@ -172,4 +274,15 @@ func (m *PushSolution) Encode() ([]byte, error) {
 		AddU32(m.Nbits).
 		AddU32(m.Version).
 		Bytes()
+}
+
+func (m *PushSolution) Decode(b []byte) error {
+	r := NewBinaryReader(b)
+	m.Extranonce = r.ReadB0_32()
+	m.PrevHash = r.ReadU256()
+	m.Nonce = r.ReadU32()
+	m.Ntime = r.ReadU32()
+	m.Nbits = r.ReadU32()
+	m.Version = r.ReadU32()
+	return r.Error()
 }

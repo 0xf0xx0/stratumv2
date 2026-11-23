@@ -4,12 +4,14 @@
 
 https://stratumprotocol.org/
 
-currently unstable, api will change + no security guarantees (but any issues will be fixed)
+currently unstable, api will change + no security guarantees atm (but any issues will be fixed)
 
 # implemented
+- noise
 - core messages
 - mining protocol
-- noise encryption
+- job declaration protocol
+- template distribution protocol
 
 # usage
 TODO: docs  
@@ -17,9 +19,6 @@ see [`examples/`](./examples)
 
 # TODO
 - properly implement TLVs
-- implement all protocols
-    - jobs
-    - template
 - docs
 - tests
-    need test messages
+    need test messages (pls send me captures)

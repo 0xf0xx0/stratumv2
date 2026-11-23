@@ -26,6 +26,19 @@ type CoinbaseOutputConstraints struct {
 	CoinbaseOutputMaxAdditionalSigops uint16 // The maximum additional sigops which Pool or JDC will add in coinbase transaction outputs.
 }
 
+func (m *CoinbaseOutputConstraints) Encode() ([]byte, error) {
+	return NewBinaryBuilder().Grow(6).
+		AddU32(m.CoinbaseOutputMaxAdditionalSize).
+		AddU16(m.CoinbaseOutputMaxAdditionalSigops).
+		Bytes()
+}
+func (m *CoinbaseOutputConstraints) Decode(b []byte) error {
+	r := NewBinaryReader(b)
+	m.CoinbaseOutputMaxAdditionalSize = r.ReadU32()
+	m.CoinbaseOutputMaxAdditionalSigops = r.ReadU16()
+	return r.Error()
+}
+
 // The primary template-providing message.
 // Note that the [NewTemplate.CoinbaseTxOutputs] bytes will appear as is at the end of the coinbase transaction.
 //
@@ -68,6 +81,37 @@ type NewTemplate struct {
 	MerklePath               []U256 // Merkle path hashes ordered from deepest.
 }
 
+func (m *NewTemplate) Encode() ([]byte, error) {
+	out := NewBinaryBuilder().Grow(len(m.CoinbasePrefix) + len(m.CoinbaseTxOutputs) + len(m.MerklePath)*32 + 41).
+		AddU64(m.TemplateId).
+		AddBool(m.FutureTemplate).
+		AddU32(m.Version).
+		AddU32(m.CoinbaseTxVersion).
+		AddBin255(m.CoinbasePrefix).
+		AddU32(m.CoinbaseTxInputSequence).
+		AddU64(m.CoinbaseTxValueRemaining).
+		AddU32(m.CoinbaseTxOutputsCount).
+		AddBin64K(m.CoinbaseTxOutputs).
+		AddU32(m.CoinbaseTxLocktime)
+	out = AddSeq255(out, m.MerklePath, (*BinaryBuilder).AddU256)
+	return out.Bytes()
+}
+func (m *NewTemplate) Decode(b []byte) error {
+	r := NewBinaryReader(b)
+	m.TemplateId = r.ReadU64()
+	m.FutureTemplate = r.ReadBool()
+	m.Version = r.ReadU32()
+	m.CoinbaseTxVersion = r.ReadU32()
+	m.CoinbasePrefix = r.ReadB0_255()
+	m.CoinbaseTxInputSequence = r.ReadU32()
+	m.CoinbaseTxValueRemaining = r.ReadU64()
+	m.CoinbaseTxOutputsCount = r.ReadU32()
+	m.CoinbaseTxOutputs = r.ReadB0_64K()
+	m.CoinbaseTxLocktime = r.ReadU32()
+	m.MerklePath = ReadSeq255(r, (*BinaryReader).ReadU256)
+	return r.Error()
+}
+
 // TD SetNewPrevHash, not mining protocol.
 //
 // Upon successful validation of a new best block, the server MUST immediately provide a [TemplateSetNewPrevHash] message.
@@ -101,11 +145,41 @@ type TemplateSetNewPrevHash struct {
 	Target U256
 }
 
+func (m *TemplateSetNewPrevHash) Encode() ([]byte, error) {
+	return NewBinaryBuilder().Grow(80).
+		AddU64(m.TemplateId).
+		AddU256(m.PrevHash).
+		AddU32(m.NtimeStart).
+		AddU32(m.NBits).
+		AddU256(m.Target).
+		Bytes()
+}
+func (m *TemplateSetNewPrevHash) Decode(b []byte) error {
+	r := NewBinaryReader(b)
+	m.TemplateId = r.ReadU64()
+	m.PrevHash = r.ReadU256()
+	m.NtimeStart = r.ReadU32()
+	m.NBits = r.ReadU32()
+	m.Target = r.ReadU256()
+	return r.Error()
+}
+
 // A request sent by the Job Declarator to the Template Provider which requests the set of transaction
 // data for all transactions (excluding the coinbase transaction) included in a block,
 // as well as any additional data which may be required by the Pool to validate the work.
 type RequestTransactionData struct {
 	TemplateId uint64 // The TemplateId corresponding to a [NewTemplate] message.
+}
+
+func (m *RequestTransactionData) Encode() ([]byte, error) {
+	return NewBinaryBuilder().Grow(8).
+		AddU64(m.TemplateId).
+		Bytes()
+}
+func (m *RequestTransactionData) Decode(b []byte) error {
+	r := NewBinaryReader(b)
+	m.TemplateId = r.ReadU64()
+	return r.Error()
 }
 
 // A response to [RequestTransactionData] which contains the set of full transaction data and excess data required for validation.
@@ -134,10 +208,38 @@ type RequestTransactionDataSuccess struct {
 	TransactionList []B0_16M // Full transactions from the referenced template, excluding the coinbase transaction, in block order.
 }
 
+func (m *RequestTransactionDataSuccess) Encode() ([]byte, error) {
+	out := NewBinaryBuilder().Grow(255*len(m.TransactionList) + len(m.ExcessData) + 12).
+		AddU64(m.TemplateId).
+		AddBin64K(m.ExcessData)
+	out = AddSeq64K(out, m.TransactionList, (*BinaryBuilder).AddBin16M)
+	return out.Bytes()
+}
+func (m *RequestTransactionDataSuccess) Decode(b []byte) error {
+	r := NewBinaryReader(b)
+	m.TemplateId = r.ReadU64()
+	m.ExcessData = r.ReadB0_64K()
+	m.TransactionList = ReadSeq64K(r, (*BinaryReader).ReadB0_16M)
+	return r.Error()
+}
+
 // An error response to [RequestTransactionData].
 type RequestTransactionDataError struct {
 	TemplateId uint64   // The TemplateId corresponding to a [NewTemplate] or [RequestTransactionData] message.
 	ErrorCode  STR0_255 // Reason why no transaction data has been provided.
+}
+
+func (m *RequestTransactionDataError) Encode() ([]byte, error) {
+	return NewBinaryBuilder().Grow(len(m.ErrorCode) + 9).
+		AddU64(m.TemplateId).
+		AddStr255(m.ErrorCode).
+		Bytes()
+}
+func (m *RequestTransactionDataError) Decode(b []byte) error {
+	r := NewBinaryReader(b)
+	m.TemplateId = r.ReadU64()
+	m.ErrorCode = r.ReadStr255()
+	return r.Error()
 }
 
 // Upon finding a coinbase transaction/nonce pair which double-SHA256 hashes at or below
@@ -161,4 +263,23 @@ type SubmitSolution struct {
 	Ntime      uint32
 	Nonce      uint32 // The nonce field in the header.
 	CoinbaseTx B0_64K // The full serialized coinbase transaction, meeting all the requirements of the [NewTemplate] message.
+}
+
+func (m *SubmitSolution) Encode() ([]byte, error) {
+	return NewBinaryBuilder().Grow(len(m.CoinbaseTx) + 22).
+		AddU64(m.TemplateId).
+		AddU32(m.Version).
+		AddU32(m.Ntime).
+		AddU32(m.Nonce).
+		AddBin64K(m.CoinbaseTx).
+		Bytes()
+}
+func (m *SubmitSolution) Decode(b []byte) error {
+	r := NewBinaryReader(b)
+	m.TemplateId = r.ReadU64()
+	m.Version = r.ReadU32()
+	m.Ntime = r.ReadU32()
+	m.Nonce = r.ReadU32()
+	m.CoinbaseTx = r.ReadB0_64K()
+	return r.Error()
 }

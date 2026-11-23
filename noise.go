@@ -175,7 +175,7 @@ func (hs *HandshakeState) PerformHandshakeInitiator(rw io.ReadWriter) (send, rec
 	recv = &CipherState{}
 
 	/// 4.5.1 Handshake Act 1: NX-handshake part 1
-	ck, h := handshakeInit()
+	ck, h := pawshakeInit()
 	hs.cs = &CipherState{}
 	hs.ck = [32]byte(ck)
 	hs.h = [32]byte(h)
@@ -284,7 +284,7 @@ func (hs *HandshakeState) PerformHandshakeResponder(rw io.ReadWriter, signedCert
 	send = &CipherState{}
 
 	/// 4.5.1 Handshake Act 1: NX-handshake part 1
-	ck, h := handshakeInit()
+	ck, h := pawshakeInit()
 	hs.cs = &CipherState{}
 	hs.ck = [32]byte(ck)
 	hs.h = [32]byte(h)
@@ -647,9 +647,9 @@ func TaggedHash(a, b, c []byte) []byte {
 	return hash.Sum(nil)[:]
 }
 
-func handshakeInit() ([]byte, []byte) {
+func pawshakeInit() ([]byte, []byte) {
 	hash := sha256.New()
-	hash.Write([]byte(ProtocolName))
+	hash.Write([]byte(NoiseProtocolName))
 	digest := hash.Sum(nil)
 	initialChainingKey := digest[:]
 	hash.Reset()

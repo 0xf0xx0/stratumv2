@@ -1,11 +1,5 @@
 package stratumv2
 
-import (
-	"bytes"
-
-	"github.com/btcsuite/btcd/wire/v2"
-)
-
 // flags
 const (
 	// The downstream node requires standard jobs, and is unable to process extended jobs.
@@ -114,7 +108,7 @@ func (m *OpenStandardMiningChannelSuccess) Decode(b []byte) error {
 	m.RequestID = r.ReadU32()
 	m.ChannelID = r.ReadU32()
 	m.Target = r.ReadU256()
-	m.ExtranoncePrefix = r.ReadBin32()
+	m.ExtranoncePrefix = r.ReadB0_32()
 	m.GroupChannelID = r.ReadU32()
 
 	return r.Error()
@@ -175,7 +169,7 @@ func (m *OpenExtendedMiningChannelSuccess) Decode(b []byte) error {
 	m.ChannelID = r.ReadU32()
 	m.Target = r.ReadU256()
 	m.ExtranonceSize = r.ReadU16()
-	m.ExtranoncePrefix = r.ReadBin32()
+	m.ExtranoncePrefix = r.ReadB0_32()
 	m.GroupChannelID = r.ReadU32()
 
 	return r.Error()
@@ -304,7 +298,7 @@ func (m *SetExtranoncePrefix) Decode(b []byte) error {
 	r := NewBinaryReader(b)
 
 	m.ChannelID = r.ReadU32()
-	m.ExtranoncePrefix = r.ReadBin32()
+	m.ExtranoncePrefix = r.ReadB0_32()
 
 	return r.Error()
 }
@@ -376,7 +370,7 @@ func (m *SubmitSharesExtended) Decode(b []byte) error {
 	m.Nonce = r.ReadU32()
 	m.Time = r.ReadU32()
 	m.Version = r.ReadU32()
-	m.Extranonce = r.ReadBin32()
+	m.Extranonce = r.ReadB0_32()
 
 	return r.Error()
 }
@@ -583,8 +577,8 @@ func (m *NewExtendedMiningJob) Decode(b []byte) error {
 	m.Version = r.ReadU32()
 	m.VersionRollingAllowed = r.ReadBool()
 	m.MerklePath = ReadSeq255(r, (*BinaryReader).ReadU256)
-	m.CoinbasePrefix = r.ReadBin64K()
-	m.CoinbaseSuffix = r.ReadBin64K()
+	m.CoinbasePrefix = r.ReadB0_64K()
+	m.CoinbaseSuffix = r.ReadB0_64K()
 
 	return r.Error()
 }
@@ -650,20 +644,12 @@ type SetCustomMiningJob struct {
 	CoinbaseSequence uint32 // The coinbase transaction input's nSequence field
 	// Outputs of the coinbase transaction.
 	// CompactSize‑prefixed array of consensus‑serialized outputs.
-	CoinbaseOutputs  []wire.TxOut
+	CoinbaseOutputs  B0_64K
 	CoinbaseLocktime uint32 // The locktime field in the coinbase transaction
 	MerklePath       []U256 // Merkle path hashes ordered from deepest
 }
 
 func (m *SetCustomMiningJob) Encode() ([]byte, error) {
-	coinbaseOutputs := make([]byte, 0, len(m.CoinbaseOutputs)*256)
-	for _, txout := range m.CoinbaseOutputs {
-		var buf bytes.Buffer
-		buf.Grow(txout.SerializeSize())
-		wire.WriteTxOut(&buf, uint32(wire.LatestEncoding), int32(m.CoinbaseVersion), &txout)
-		coinbaseOutputs = append(coinbaseOutputs, buf.Bytes()...)
-	}
-
 	out := NewBinaryBuilder().
 		Grow(2048).
 		AddU32(m.ChannelID).
@@ -676,7 +662,7 @@ func (m *SetCustomMiningJob) Encode() ([]byte, error) {
 		AddU32(m.CoinbaseVersion).
 		AddBin255(m.CoinbasePrefix).
 		AddU32(m.CoinbaseSequence).
-		AddBin64K(coinbaseOutputs).
+		AddBin64K(m.CoinbaseOutputs).
 		AddU32(m.CoinbaseLocktime)
 	out = AddSeq255(out, m.MerklePath, (*BinaryBuilder).AddU256)
 	return out.Bytes()
@@ -686,25 +672,15 @@ func (m *SetCustomMiningJob) Decode(b []byte) error {
 
 	m.ChannelID = r.ReadU32()
 	m.RequestID = r.ReadU32()
-	m.MiningJobToken = r.ReadBin255()
+	m.MiningJobToken = r.ReadB0_255()
 	m.Version = r.ReadU32()
 	m.PrevHash = r.ReadU256()
 	m.MinTime = r.ReadU32()
 	m.Bits = r.ReadU32()
 	m.CoinbaseVersion = r.ReadU32()
-	m.CoinbasePrefix = r.ReadBin255()
+	m.CoinbasePrefix = r.ReadB0_255()
 	m.CoinbaseSequence = r.ReadU32()
-
-	/// FIXME: encoding
-
-	// outputs := r.ReadBin64K()
-	// l, err := wire.ReadVarIntBuf(r, uint32(wire.LatestEncoding), outputs)
-	//m.CoinbaseOutputs = make([]wire.TxOut, 0, l)
-	// for i := uint64(0); i < l; i++ {
-	// txout := &wire.TxOut{}
-	// wire.ReadTxOut(r, uint32(wire.LatestEncoding), int32(m.CoinbaseVersion), txout)
-	// m.CoinbaseOutputs = append(m.CoinbaseOutputs, *txout)
-	// }
+	m.CoinbaseOutputs = r.ReadB0_64K()
 	m.CoinbaseLocktime = r.ReadU32()
 	return r.Error()
 }

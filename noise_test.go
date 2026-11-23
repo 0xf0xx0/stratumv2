@@ -233,7 +233,7 @@ func TestFullHandshake(t *testing.T) {
 		DeviceFirmware:        "go-sv2-test",
 		DeviceID:              "bluuchuu",
 	}
-	setupFrame, err := stratumv2.NewFrameFromParams(stratumv2.MessageSetupConnection, stratumv2.ExtensionTypeCore, &setupmsg)
+	setupFrame, err := stratumv2.NewFrame(stratumv2.MessageSetupConnection, stratumv2.ExtensionTypeCore, &setupmsg)
 	if err != nil {
 		panic(err)
 	}

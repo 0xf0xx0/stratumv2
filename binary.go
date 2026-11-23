@@ -477,7 +477,7 @@ func (br *BinaryReader) ReadStr255() string {
 	l := int(br.ReadU8())
 	return string(br.read(l))
 }
-func (br *BinaryReader) ReadBin32() []byte {
+func (br *BinaryReader) ReadB0_32() []byte {
 	if br.err != nil {
 		return nil
 	}
@@ -489,7 +489,7 @@ func (br *BinaryReader) ReadBin32() []byte {
 	b := br.read(l)
 	return b
 }
-func (br *BinaryReader) ReadBin255() []byte {
+func (br *BinaryReader) ReadB0_255() []byte {
 	if br.err != nil {
 		return nil
 	}
@@ -497,7 +497,7 @@ func (br *BinaryReader) ReadBin255() []byte {
 	b := br.read(l)
 	return b
 }
-func (br *BinaryReader) ReadBin64K() []byte {
+func (br *BinaryReader) ReadB0_64K() []byte {
 	if br.err != nil {
 		return nil
 	}
@@ -506,7 +506,7 @@ func (br *BinaryReader) ReadBin64K() []byte {
 	b := br.read(l)
 	return b
 }
-func (br *BinaryReader) ReadBin16M() []byte {
+func (br *BinaryReader) ReadB0_16M() []byte {
 	if br.err != nil {
 		return nil
 	}

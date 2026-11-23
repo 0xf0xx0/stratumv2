@@ -12,8 +12,8 @@ import (
 )
 
 func TestU256(t *testing.T) {
-	target := &stratumv2.U256{}
-	compar := &stratumv2.U256{}
+	target := stratumv2.U256{}
+	compar := stratumv2.U256{}
 
 	target.SetBytes(hexDec("00ff000000000000000000000000000000000000000000000000000000000000"))
 
@@ -63,31 +63,34 @@ func TestU256(t *testing.T) {
 	}
 }
 func TestU256Add(t *testing.T) {
-	target := &stratumv2.U256{}
-	comp := &stratumv2.U256{}
-	expected := &stratumv2.U256{}
+	target := stratumv2.U256{}
+	comp := stratumv2.U256{}
+	expected := stratumv2.U256{}
 	/// math
 	target.SetString("00000000000000000000000000000000000000000000000000000000000000ff")
 	comp.SetString("00000000000000000000000000000000000000000000000000000000000000ef")
 	expected.SetString("00000000000000000000000000000000000000000000000000000000000001ee")
-	if !expected.IsEqual(*target.Add(*comp)) {
-		t.Fatalf("U256 addition failure:\ngot:\n\t%x\nwanted:\n\t%x", target[:], expected[:])
+	res := target.Add(comp)
+	if !expected.IsEqual(res) {
+		t.Fatalf("U256 addition failure:\ngot:\n\t%x\nwanted:\n\t%x", res[:], expected[:])
 	}
 	target.SetString("000000000000000000000000000000000000000000000000000000000000ffff")
 	comp.SetString("000000000000000000000000000000000000000000000000000000000000ffff")
 	expected.SetString("000000000000000000000000000000000000000000000000000000000001fffe")
-	if !expected.IsEqual(*target.Add(*comp)) {
-		t.Fatalf("U256 addition failure:\ngot:\n\t%x\nwanted:\n\t%x", target[:], expected[:])
+	res = target.Add(comp)
+	if !expected.IsEqual(res) {
+		t.Fatalf("U256 addition failure:\ngot:\n\t%x\nwanted:\n\t%x", res[:], expected[:])
 	}
 
 	target.SetString("000000000000000000000000000000000000000000000000000000000007b24b")
 	comp.SetString("00000000000000000000000000000000000000000000000000000000001e4958")
 	expected.SetString("000000000000000000000000000000000000000000000000000000000025fba3")
 
-	if !expected.IsEqual(*target.Add(*comp)) {
-		t.Fatalf("U256 addition failure:\ngot:\n\t%x\nwanted:\n\t%x", target[:], expected[:])
+	res = target.Add(comp)
+	if !expected.IsEqual(res) {
+		t.Fatalf("U256 addition failure:\ngot:\n\t%x\nwanted:\n\t%x", res[:], expected[:])
 	}
-	if diff, err := strconv.ParseInt(hex.EncodeToString(target[:]), 16, 64); diff != 0x25fba3 {
+	if diff, err := strconv.ParseInt(hex.EncodeToString(res[:]), 16, 64); diff != 0x25fba3 {
 		if err != nil {
 			t.Fatal(err)
 		}
@@ -98,35 +101,39 @@ func TestU256Add(t *testing.T) {
 	comp.SetString("000000000000000000000000000000000000000000000000000000000000ffff")
 	expected.SetString("000000000000000000000000000000000000000000000000000000000000fffe")
 
-	if !expected.IsEqual(*target.Add(*comp)) {
-		t.Fatalf("U256 addition failure:\ngot:\n\t%x\nwanted:\n\t%x", target[:], expected[:])
+	res = target.Add(comp)
+	if !expected.IsEqual(res) {
+		t.Fatalf("U256 addition failure:\ngot:\n\t%x\nwanted:\n\t%x", res[:], expected[:])
 	}
 }
 func TestU256Sub(t *testing.T) {
-	target := &stratumv2.U256{}
-	comp := &stratumv2.U256{}
-	expected := &stratumv2.U256{}
+	target := stratumv2.U256{}
+	comp := stratumv2.U256{}
+	expected := stratumv2.U256{}
 	/// math
 	target.SetString("00000000000000000000000000000000000000000000000000000000000000ff")
 	comp.SetString("00000000000000000000000000000000000000000000000000000000000000ef")
 	expected.SetString("0000000000000000000000000000000000000000000000000000000000000010")
-	if !expected.IsEqual(*target.Sub(*comp)) {
-		t.Fatalf("U256 subtraction failure:\ngot:\n\t%x\nwanted:\n\t%x", target[:], expected[:])
+	res := target.Sub(comp)
+	if !expected.IsEqual(res) {
+		t.Fatalf("U256 subtraction failure:\ngot:\n\t%x\nwanted:\n\t%x", res[:], expected[:])
 	}
 
 	target.SetString("00000000000000000000000000000000000000000000000000000000deadbeef")
 	comp.SetString("00000000000000000000000000000000000000000000000000000000beefdead")
 	expected.SetString("000000000000000000000000000000000000000000000000000000001fbde042")
-	if !expected.IsEqual(*target.Sub(*comp)) {
-		t.Fatalf("U256 subtraction failure:\ngot:\n\t%x\nwanted:\n\t%x", target[:], expected[:])
+	res = target.Sub(comp)
+	if !expected.IsEqual(res) {
+		t.Fatalf("U256 subtraction failure:\ngot:\n\t%x\nwanted:\n\t%x", res[:], expected[:])
 	}
 
 	/// overflow
 	target.SetString("0000000000000000000000000000000000000000000000000000000000000000")
 	comp.SetString("ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff")
 	expected.SetString("0000000000000000000000000000000000000000000000000000000000000001")
-	if !expected.IsEqual(*target.Sub(*comp)) {
-		t.Fatalf("U256 subtraction failure:\ngot:\n\t%x\nwanted:\n\t%x", target[:], expected[:])
+	res = target.Sub(comp)
+	if !expected.IsEqual(res) {
+		t.Fatalf("U256 subtraction failure:\ngot:\n\t%x\nwanted:\n\t%x", res[:], expected[:])
 	}
 }
 
@@ -170,7 +177,7 @@ func TestU256MulDiv(t *testing.T) {
 
 		/// mul
 		want := new(big.Int).Mod(new(big.Int).Mul(aBig, bBig), modulus)
-		if got := a.Clone().Mul(*b); !got.IsEqual(*bigToU256(want)) {
+		if got := a.Mul(*b); !got.IsEqual(*bigToU256(want)) {
 			t.Fatalf("U256 mul failure:\n%s *\n%s =\ngot\n\t%s\nwanted\n\t%s",
 				a.StringNonReversed(), b.StringNonReversed(),
 				got.StringNonReversed(), bigToU256(want).StringNonReversed())
@@ -179,7 +186,7 @@ func TestU256MulDiv(t *testing.T) {
 		/// div
 		if bBig.Sign() != 0 {
 			want := new(big.Int).Quo(aBig, bBig)
-			if got := a.Clone().Div(*b); !got.IsEqual(*bigToU256(want)) {
+			if got := a.Div(*b); !got.IsEqual(*bigToU256(want)) {
 				t.Fatalf("U256 div failure:\n%s /\n%s =\ngot\n\t%s\nwanted\n\t%s",
 					a.StringNonReversed(), b.StringNonReversed(),
 					got.StringNonReversed(), bigToU256(want).StringNonReversed())
@@ -206,7 +213,7 @@ func BenchmarkU256SetString(b *testing.B) {
 	u1 := &stratumv2.U256{}
 	u1.SetBytes(b1)
 	for b.Loop() {
-		u2 := &stratumv2.U256{}
+		u2 := stratumv2.U256{}
 		/// slowest path
 		u2.SetString("000000000000000000000000000000000000000000000000000000000000ff00")
 		ok := u1.IsMetBy(u2)
@@ -219,10 +226,10 @@ func BenchmarkU256SetBytes(b *testing.B) {
 	b1 := hexDec("00ff000000000000000000000000000000000000000000000000000000000000")
 	b2 := hexDec("000000000000000000000000000000000000000000000000000000000000ff00")
 
-	u1 := &stratumv2.U256{}
+	u1 := stratumv2.U256{}
 	u1.SetBytes(b1)
 	for b.Loop() {
-		u2 := &stratumv2.U256{}
+		u2 := stratumv2.U256{}
 		/// slowest path
 		u2.SetBytes(b2)
 		ok := u1.IsMetBy(u2)
