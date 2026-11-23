@@ -74,14 +74,14 @@ func (m *AllocateMiningJobTokenSuccess) Encode() ([]byte, error) {
 	return NewBinaryBuilder().Grow(len(m.MiningJobToken) + len(m.CoinbaseTxOutputs) + 7).
 		AddU32(m.RequestID).
 		AddBin255(m.MiningJobToken).
-		AddBin64K(m.CoinbaseTxOutputs).
+		AddBin64KCompact(m.CoinbaseTxOutputs).
 		Bytes()
 }
 func (m *AllocateMiningJobTokenSuccess) Decode(b []byte) error {
 	r := NewBinaryReader(b)
 	m.RequestID = r.ReadU32()
 	m.MiningJobToken = r.ReadB0_255()
-	m.CoinbaseTxOutputs = r.ReadB0_64K()
+	m.CoinbaseTxOutputs = r.ReadB0_64KCompact()
 	return r.Error()
 }
 

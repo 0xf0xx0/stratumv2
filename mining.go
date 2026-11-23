@@ -662,7 +662,7 @@ func (m *SetCustomMiningJob) Encode() ([]byte, error) {
 		AddU32(m.CoinbaseTxVersion).
 		AddBin255(m.CoinbasePrefix).
 		AddU32(m.CoinbaseTxInputSequence).
-		AddBin64K(m.CoinbaseTxOutputs).
+		AddBin64KCompact(m.CoinbaseTxOutputs).
 		AddU32(m.CoinbaseTxLocktime)
 	out = AddSeq255(out, m.MerklePath, (*BinaryBuilder).AddU256)
 	return out.Bytes()
@@ -680,7 +680,7 @@ func (m *SetCustomMiningJob) Decode(b []byte) error {
 	m.CoinbaseTxVersion = r.ReadU32()
 	m.CoinbasePrefix = r.ReadB0_255()
 	m.CoinbaseTxInputSequence = r.ReadU32()
-	m.CoinbaseTxOutputs = r.ReadB0_64K()
+	m.CoinbaseTxOutputs = r.ReadB0_64KCompact()
 	m.CoinbaseTxLocktime = r.ReadU32()
 	return r.Error()
 }

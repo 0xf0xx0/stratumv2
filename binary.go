@@ -4,6 +4,8 @@ import (
 	"errors"
 	"io"
 	"math"
+
+	"github.com/btcsuite/btcd/wire/v2"
 )
 
 const (
@@ -55,6 +57,17 @@ func (bb *BinaryBuilder) Len() int {
 // Cap returns the capacity of the backing slice.
 func (bb *BinaryBuilder) Cap() int {
 	return cap(bb.data)
+}
+
+// implements [io.Writer].
+func (bb *BinaryBuilder) Write(b []byte) (n int, err error) {
+	if bb.err != nil {
+		return 0, bb.err
+	}
+	blen := len(b)
+	bb.Grow(blen).
+		AddBytes(b)
+	return blen, bb.err
 }
 
 func (bb *BinaryBuilder) AddBool(boo bool) *BinaryBuilder {
@@ -136,6 +149,11 @@ func (bb *BinaryBuilder) AddF32(f float32) *BinaryBuilder {
 	bb.data = ble.AppendUint32(bb.data, math.Float32bits(f))
 	return bb
 }
+func (bb *BinaryBuilder) AddCompactSize(i uint64) *BinaryBuilder {
+	bb.Grow(wire.VarIntSerializeSize(i))
+	wire.WriteVarInt(bb, wire.ProtocolVersion, i)
+	return bb
+}
 
 // AddBin32 appends a byte array with 8-bit length prefix L. Unsigned integer, followed by a sequence of L bytes. Allowed range of length is 0 to 32.
 func (bb *BinaryBuilder) AddBin32(s []byte) *BinaryBuilder {
@@ -182,6 +200,22 @@ func (bb *BinaryBuilder) AddBin64K(s []byte) *BinaryBuilder {
 		AddU16(uint16(l)).AddBytes(s)
 }
 
+// AddBin64KCompact is the same as [BinaryBuilder.AddBin64K],
+// but it prefixes the array with a CompactSize number.
+func (bb *BinaryBuilder) AddBin64KCompact(s []byte) *BinaryBuilder {
+	if bb.err != nil {
+		return bb
+	}
+	l := len(s)
+	if l > limit64k {
+		bb.err = errors.New("AddBin64K: len > 65535")
+		return bb
+	}
+
+	return bb.Grow(l + 2).
+		AddCompactSize(uint64(l)).AddBytes(s)
+}
+
 // AddBin16M appends a byte array with 24-bit length prefix L. Unsigned integer encoded as [U24], followed by a sequence of L bytes. Allowed range of length is 0 to 2^24-1.
 func (bb *BinaryBuilder) AddBin16M(s []byte) *BinaryBuilder {
 	if bb.err != nil {
@@ -198,7 +232,6 @@ func (bb *BinaryBuilder) AddBin16M(s []byte) *BinaryBuilder {
 		AddBytes(s)
 }
 
-// TODO: use mac
 func (bb *BinaryBuilder) AddMAC(mac [16]byte) *BinaryBuilder {
 	return bb.AddBytes(mac[:])
 }
@@ -223,7 +256,7 @@ func (bb *BinaryBuilder) AddShortTXID(txid [6]byte) *BinaryBuilder {
 	return bb
 }
 
-// AddOptionT appends a sequence of 0 to 1 `add`-encodable elements. Alias for [AddSeq1].
+// AddOptionT appends a sequence of 0 to 1 items. Alias for [AddSeq1].
 //
 //	out = AddOptionT(out, m.MinTime, (*BinaryBuilder).AddU32)
 func AddOptionT[T any](bb *BinaryBuilder, items []T, add func(*BinaryBuilder, T) *BinaryBuilder) *BinaryBuilder {
@@ -231,6 +264,8 @@ func AddOptionT[T any](bb *BinaryBuilder, items []T, add func(*BinaryBuilder, T)
 }
 
 // AddSeq1 appends a sequence of 0 to 1 items with a U8 length prefix.
+//
+//	out = AddSeq1(out, m.MinTime, (*BinaryBuilder).AddU256)
 func AddSeq1[T any](bb *BinaryBuilder, items []T, add func(*BinaryBuilder, T) *BinaryBuilder) *BinaryBuilder {
 	if bb.err != nil {
 		return bb
@@ -248,6 +283,8 @@ func AddSeq1[T any](bb *BinaryBuilder, items []T, add func(*BinaryBuilder, T) *B
 }
 
 // AddSeq255 appends a sequence of 0 to 255 items with a U8 length prefix.
+//
+//	out = AddSeq255(out, m.MinTime, (*BinaryBuilder).AddB0_16M)
 func AddSeq255[T any](bb *BinaryBuilder, items []T, add func(*BinaryBuilder, T) *BinaryBuilder) *BinaryBuilder {
 	if bb.err != nil {
 		return bb
@@ -265,6 +302,8 @@ func AddSeq255[T any](bb *BinaryBuilder, items []T, add func(*BinaryBuilder, T) 
 }
 
 // AddSeq64K appends a sequence of 0 to 65535 items with a U16 length prefix.
+//
+//	out = AddSeq64K(out, m.MinTime, (*BinaryBuilder).AddStr255)
 func AddSeq64K[T any](bb *BinaryBuilder, items []T, add func(*BinaryBuilder, T) *BinaryBuilder) *BinaryBuilder {
 	if bb.err != nil {
 		return bb
@@ -408,7 +447,6 @@ func (br *BinaryReader) ReadU256() U256 {
 	br.err = h.SetBytes(b)
 	return h
 }
-
 func (br *BinaryReader) ReadF32() float32 {
 	if br.err != nil {
 		return 0
@@ -419,15 +457,28 @@ func (br *BinaryReader) ReadF32() float32 {
 	}
 	return math.Float32frombits(ble.Uint32(b))
 }
+func (br *BinaryReader) ReadCompactSize() uint64 {
+	if br.err != nil {
+		return 0
+	}
+	i, err := wire.ReadVarInt(br, wire.ProtocolVersion)
+	if err != nil {
+		br.err = err
+		return 0
+	}
+	return i
+}
 
 // ReadOptionT reads a sequence of 0 to 1 elements. Alias for [ReadSeq1].
 //
-//	m.MinTime = ReadOptionT(r, (*BinaryReader).ReadU32)
+//	m.MinTime = ReadOptionT(r, (*BinaryReader).ReadU8)
 func ReadOptionT[T any](br *BinaryReader, read func(*BinaryReader) T) []T {
 	return ReadSeq1(br, read)
 }
 
 // ReadSeq1 reads a sequence of 0 to 1 elements with a U8 length prefix.
+//
+//	m.MinTime = ReadSeq1(r, (*BinaryReader).ReadBytes)
 func ReadSeq1[T any](br *BinaryReader, read func(*BinaryReader) T) []T {
 	if br.err != nil {
 		return nil
@@ -445,6 +496,8 @@ func ReadSeq1[T any](br *BinaryReader, read func(*BinaryReader) T) []T {
 }
 
 // ReadSeq255 reads a sequence of 0 to 255 elements with a U8 length prefix.
+//
+//	m.MinTime = ReadSeq255(r, (*BinaryReader).ReadB0_255)
 func ReadSeq255[T any](br *BinaryReader, read func(*BinaryReader) T) []T {
 	if br.err != nil {
 		return nil
@@ -458,6 +511,8 @@ func ReadSeq255[T any](br *BinaryReader, read func(*BinaryReader) T) []T {
 }
 
 // ReadSeq64K reads a sequence of 0 to 65535 elements with a U16 length prefix.
+//
+//	m.MinTime = ReadSeq64K(r, (*BinaryReader).ReadEllswiftPubkey)
 func ReadSeq64K[T any](br *BinaryReader, read func(*BinaryReader) T) []T {
 	if br.err != nil {
 		return nil
@@ -502,7 +557,14 @@ func (br *BinaryReader) ReadB0_64K() []byte {
 		return nil
 	}
 	l := int(br.ReadU16())
-	// println(l)
+	b := br.read(l)
+	return b
+}
+func (br *BinaryReader) ReadB0_64KCompact() []byte {
+	if br.err != nil {
+		return nil
+	}
+	l := int(br.ReadCompactSize())
 	b := br.read(l)
 	return b
 }
@@ -540,7 +602,7 @@ func (br *BinaryReader) ReadSignature() Signature {
 	return Signature(br.read(64))
 }
 
-// [io.Reader] impl
+// implements [io.Reader].
 func (br *BinaryReader) Read(dest []byte) (int, error) {
 	if br.err != nil {
 		return 0, br.err
@@ -553,7 +615,7 @@ func (br *BinaryReader) Read(dest []byte) (int, error) {
 	return l, br.err
 }
 
-// [io.Seeker] impl
+// implements [io.Seeker].
 func (br *BinaryReader) Seek(offset int64, whence int) (int64, error) {
 	if br.err != nil {
 		return 0, br.err
