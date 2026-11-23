@@ -45,9 +45,9 @@ func main() {
 	signal.Notify(sigs, syscall.SIGINT, syscall.SIGTERM)
 	opts := flag.NewFlagSet("sv2-logger", flag.ExitOnError)
 
-	srv := opts.String("server", "127.0.0.1", "server ip to connect to")
-	port := opts.Uint("port", 5661, "server port")
-	auth := opts.String("authority", "", "authority key to validate against (empty = no validation)")
+	srv := opts.String("server", poolhost, "server ip to connect to")
+	port := opts.Uint("port", uint(poolport), "server port")
+	auth := opts.String("authority", authkey, "authority key to validate against (empty = no validation)")
 	chainAddr := opts.String("address", "", "on-chain address to authorize as (default: hardcoded bytes idk)")
 
 	if opts.Parse(os.Args[1:]) != nil {
@@ -164,10 +164,6 @@ func main() {
 			loog.Println(err.Error())
 		}
 	}
-
-	// closemsgBytes, err := send.EncryptFrame(closemsgFrame)
-	//
-	// conn.Write(closemsgBytes)
 	conn.Close()
 }
 func newReqID() uint32 {
