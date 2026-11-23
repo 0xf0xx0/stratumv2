@@ -635,18 +635,18 @@ type SetCustomMiningJob struct {
 	MiningJobToken []byte // Token provided by JDS which uniquely identifies the Custom Job that JDC has declared. See the Job Declaration Protocol for more details.
 	// Valid version field that reflects the current network consensus.
 	// The general purpose bits (as specified in BIP320) can be freely manipulated by the downstream node.
-	Version          uint32
-	PrevHash         U256   // Previous block’s hash, found in the block header field
-	MinTime          uint32 // Smallest nTime value available for hashing
-	Bits             uint32 // Block header field
-	CoinbaseVersion  uint32 // The coinbase transaction nVersion field
-	CoinbasePrefix   []byte // Up to 8 bytes (not including the length byte) which are to be placed at the beginning of the coinbase field in the coinbase transaction.
-	CoinbaseSequence uint32 // The coinbase transaction input's nSequence field
+	Version                 uint32
+	PrevHash                U256   // Previous block’s hash, found in the block header field
+	MinTime                 uint32 // Smallest nTime value available for hashing
+	Bits                    uint32 // Block header field
+	CoinbaseTxVersion       uint32 // The coinbase transaction nVersion field
+	CoinbasePrefix          []byte // Up to 8 bytes (not including the length byte) which are to be placed at the beginning of the coinbase field in the coinbase transaction.
+	CoinbaseTxInputSequence uint32 // The coinbase transaction input's nSequence field
 	// Outputs of the coinbase transaction.
 	// CompactSize‑prefixed array of consensus‑serialized outputs.
-	CoinbaseOutputs  B0_64K
-	CoinbaseLocktime uint32 // The locktime field in the coinbase transaction
-	MerklePath       []U256 // Merkle path hashes ordered from deepest
+	CoinbaseTxOutputs  B0_64K
+	CoinbaseTxLocktime uint32 // The locktime field in the coinbase transaction
+	MerklePath         []U256 // Merkle path hashes ordered from deepest
 }
 
 func (m *SetCustomMiningJob) Encode() ([]byte, error) {
@@ -659,11 +659,11 @@ func (m *SetCustomMiningJob) Encode() ([]byte, error) {
 		AddU256(m.PrevHash).
 		AddU32(m.MinTime).
 		AddU32(m.Bits).
-		AddU32(m.CoinbaseVersion).
+		AddU32(m.CoinbaseTxVersion).
 		AddBin255(m.CoinbasePrefix).
-		AddU32(m.CoinbaseSequence).
-		AddBin64K(m.CoinbaseOutputs).
-		AddU32(m.CoinbaseLocktime)
+		AddU32(m.CoinbaseTxInputSequence).
+		AddBin64K(m.CoinbaseTxOutputs).
+		AddU32(m.CoinbaseTxLocktime)
 	out = AddSeq255(out, m.MerklePath, (*BinaryBuilder).AddU256)
 	return out.Bytes()
 }
@@ -677,11 +677,11 @@ func (m *SetCustomMiningJob) Decode(b []byte) error {
 	m.PrevHash = r.ReadU256()
 	m.MinTime = r.ReadU32()
 	m.Bits = r.ReadU32()
-	m.CoinbaseVersion = r.ReadU32()
+	m.CoinbaseTxVersion = r.ReadU32()
 	m.CoinbasePrefix = r.ReadB0_255()
-	m.CoinbaseSequence = r.ReadU32()
-	m.CoinbaseOutputs = r.ReadB0_64K()
-	m.CoinbaseLocktime = r.ReadU32()
+	m.CoinbaseTxInputSequence = r.ReadU32()
+	m.CoinbaseTxOutputs = r.ReadB0_64K()
+	m.CoinbaseTxLocktime = r.ReadU32()
 	return r.Error()
 }
 
