@@ -14,8 +14,8 @@ currently unstable, api will change + no security guarantees atm (but any issues
 - template distribution protocol
 
 # usage
-TODO: docs  
-see [`examples/`](./examples)
+TODO  
+see godoc and [`examples/`](./examples)
 
 # TODO
 - properly implement TLVs

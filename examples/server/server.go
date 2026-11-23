@@ -1,8 +1,8 @@
 // test server
+// just accepts a conn and setup message
 package main
 
 import (
-	"encoding/hex"
 	"errors"
 	"flag"
 	"fmt"
@@ -16,25 +16,12 @@ import (
 
 	"git.0xf0xx0.eth.limo/0xf0xx0/stratumv2"
 	"git.0xf0xx0.eth.limo/0xf0xx0/stratumv2/examples/shared"
-	"github.com/btcsuite/btcd/address/v2"
-	"github.com/btcsuite/btcd/chaincfg/v2"
 )
 
 var (
-	poolhost = "91.98.76.244" ///warppool
-	poolport = uint16(3336)
-	authkey  = "9ankJhx4JpKeJd7xHzPVM98kU1WppT45Pbp3LfeKVdyt5bYgBY8"
-	addr     = func() address.Address {
-		b, _ := hex.DecodeString("8033d13ee81500afe03a9f48ed142b15724816dd9247c9cf55ae447a5b867449")
-		addr, _ := address.NewAddressTaproot(b, &chaincfg.MainNetParams)
-		return addr
-	}()
-	maxtarget = func() stratumv2.U256 {
-		s := stratumv2.U256{}
-		s.SetString("00000000FFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFF")
-		return s
-	}()
-	loog = shared.Logger
+	poolhost = "0.0.0.0"
+	poolport = uint16(3333)
+	loog     = shared.Logger
 )
 var (
 	reqid  = uint32(0)

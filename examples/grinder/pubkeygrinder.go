@@ -13,9 +13,6 @@ import (
 )
 
 func main() {
-	// f, _ := os.Create("./cpu.prof")
-	// pprof.StartCPUProfile(f)
-	// str := "pogoLo" /// is this even possible lul
 	str := "SV2"
 	strLen := len(str)
 	maxResults := 1
@@ -23,7 +20,6 @@ func main() {
 	wg := sync.WaitGroup{}
 	ctx, cancel := context.WithCancel(context.Background())
 	for i := range 4 {
-		// pprof.WithLabels(ctx, pprof.Labels("grinder", strconv.Itoa(i)))
 		println("starting goroutine", i)
 		wg.Go(func() {
 			grinder(strLen, str, resultChan, &cancel, ctx, &wg)
@@ -51,7 +47,6 @@ func main() {
 		totalHashrate += float64(res.nonce) / res.timeTaken.Seconds()
 	}
 	fmt.Printf("total hashrate: %f h/s", totalHashrate)
-	// pprof.StopCPUProfile()
 	wg.Wait()
 }
 
@@ -79,8 +74,7 @@ func grinder(strLen int, str string, resultChan chan result, cancel *context.Can
 			panic(err)
 		}
 		enc := stratumv2.SerializeAuthorityKey(stratumv2.Pubkey(key.PubKey().X().FillBytes(pubkeyBuf)))
-		// println(enc)
-		// if strings.ToLower(enc[2:2+strLen]) == str {
+
 		if enc[2:2+strLen] == str {
 			resultChan <- result{
 				pubKey:    enc,
