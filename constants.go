@@ -10,8 +10,8 @@ var ble = binary.LittleEndian
 const (
 	// ProtocolVersion is the latest protocol version this package supports.
 	ProtocolVersion          = 2
-	CertificateFormatVersion = 0 // latest supported handshake certificate format version
-	ProtocolName             = "Noise_NX_Secp256k1+EllSwift_ChaChaPoly_SHA256"
+	CertificateFormatVersion = 0                                               // latest supported handshake certificate format version
+	NoiseProtocolName        = "Noise_NX_Secp256k1+EllSwift_ChaChaPoly_SHA256" // use for the handshake
 	// Serialized stratum-v2 body (payload) is split into 65519-byte chunks and encrypted to form 65535-bytes AEAD ciphertexts
 	MaxPlaintextChunkSize = 65519
 	MaxNoiseFrameSize     = 65535
@@ -89,8 +89,63 @@ const (
 	MessageSubmitSolution                MessageType = 0x76
 )
 
-var MessageTypeToString = map[MessageType]string{}
-var StringToMessageType = map[string]MessageType{}
+// MessageTypeToString maps message type identifiers to their protocol message names.
+var MessageTypeToString = map[MessageType]string{
+	MessageSetupConnection:                   "SetupConnection",
+	MessageSetupConnectionSuccess:            "SetupConnection.Success",
+	MessageSetupConnectionError:              "SetupConnection.Error",
+	MessageChannelEndpointChanged:            "ChannelEndpointChanged",
+	MessageReconnect:                         "Reconnect",
+	MessageOpenStandardMiningChannel:         "OpenStandardMiningChannel",
+	MessageOpenStandardMiningChannelSuccess:  "OpenStandardMiningChannel.Success",
+	MessageOpenMiningChannelError:            "OpenMiningChannel.Error",
+	MessageOpenExtendedMiningChannel:         "OpenExtendedMiningChannel",
+	MessageOpenExtendedMiningChannelSuccess:  "OpenExtendedMiningChannel.Success",
+	MessageNewMiningJob:                      "NewMiningJob",
+	MessageUpdateChannel:                     "UpdateChannel",
+	MessageUpdateChannelError:                "UpdateChannel.Error",
+	MessageCloseChannel:                      "CloseChannel",
+	MessageSetExtranoncePrefix:               "SetExtranoncePrefix",
+	MessageSubmitSharesStandard:              "SubmitSharesStandard",
+	MessageSubmitSharesExtended:              "SubmitSharesExtended",
+	MessageSubmitSharesSuccess:               "SubmitShares.Success",
+	MessageSubmitSharesError:                 "SubmitShares.Error",
+	MessageReserved:                          "Reserved",
+	MessageNewExtendedMiningJob:              "NewExtendedMiningJob",
+	MessageSetNewPrevHash:                    "SetNewPrevHash",
+	MessageSetTarget:                         "SetTarget",
+	MessageSetCustomMiningJob:                "SetCustomMiningJob",
+	MessageSetCustomMiningJobSuccess:         "SetCustomMiningJob.Success",
+	MessageSetCustomMiningJobError:           "SetCustomMiningJob.Error",
+	MessageSetGroupChannel:                   "SetGroupChannel",
+	MessageAllocateMiningJobToken:            "AllocateMiningJobToken",
+	MessageAllocateMiningJobTokenSuccess:     "AllocateMiningJobToken.Success",
+	MessageProvideMissingTransactions:        "ProvideMissingTransactions",
+	MessageProvideMissingTransactionsSuccess: "ProvideMissingTransactions.Success",
+	MessageDeclareMiningJob:                  "DeclareMiningJob",
+	MessageDeclareMiningJobSuccess:           "DeclareMiningJob.Success",
+	MessageDeclareMiningJobError:             "DeclareMiningJob.Error",
+	MessagePushSolution:                      "PushSolution",
+	MessageCoinbaseOutputConstraints:         "CoinbaseOutputConstraints",
+	MessageNewTemplate:                       "NewTemplate",
+	MessageTemplateSetNewPrevHash:            "SetNewPrevHash",
+	MessageRequestTransactionData:            "RequestTransactionData",
+	MessageRequestTransactionDataSuccess:     "RequestTransactionData.Success",
+	MessageRequestTransactionDataError:       "RequestTransactionData.Error",
+	MessageSubmitSolution:                    "SubmitSolution",
+}
+
+// StringToMessageType maps protocol message names to their message type identifiers.
+// "SetNewPrevHash" is shared by Mining and Template Distribution and resolves to
+// [MessageSetNewPrevHash], the Mining Protocol message.
+var StringToMessageType = func() map[string]MessageType {
+	out := make(map[string]MessageType, len(MessageTypeToString))
+	for messageType, name := range MessageTypeToString {
+		out[name] = messageType
+	}
+	out["SetNewPrevHash"] = MessageSetNewPrevHash
+	return out
+}()
 
 const (
 	UnsupportedFeatureFlagsError Error = "unsupported-feature-flags"
