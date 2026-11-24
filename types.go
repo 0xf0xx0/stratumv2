@@ -248,9 +248,10 @@ func (t *TLV) Decode(b []byte) error {
 	return r.Error()
 }
 
-// basically chainhash.Hash with a slightly different set of funcs
+// U256 is a 256-bit unsigned integer stored in little-endian byte order.
 //
-// you likely want to use chainhash.Hash and cast to U256 when needed
+// Basically [chainhash.Hash] with a slightly different set of funcs.
+// You likely want to use [chainhash.Hash] and cast to U256 when needed.
 type U256 [32]byte
 
 func (u U256) Clone() U256 {
@@ -266,7 +267,7 @@ func (u U256) CloneBytes() []byte {
 	return makeCopy
 }
 
-// SetBytes sets the U256 from a byte slice of length 32.
+// SetBytes sets the U256 from a little-endian byte slice of length 32.
 func (u *U256) SetBytes(b []byte) error {
 	if len(b) != 32 {
 		return errors.New("SetBytes: len not 32")
@@ -275,7 +276,7 @@ func (u *U256) SetBytes(b []byte) error {
 	return nil
 }
 
-// SetString sets the U256 from a hex string of length 64.
+// SetString sets the U256 from a big-endian hex string of length 64.
 func (u *U256) SetString(s string) error {
 	if len(s) != 64 {
 		return errors.New("SetString: len not 64")
@@ -284,7 +285,9 @@ func (u *U256) SetString(s string) error {
 	if err != nil {
 		return err
 	}
-	copy(u[:], b)
+	for i := range 32 {
+		u[i] = b[31-i]
+	}
 	return nil
 }
 
@@ -315,7 +318,7 @@ func (target U256) IsMetByHash(hash chainhash.Hash) bool {
 // Compare returns an integer comparing a U256 to a target U256.
 // it returns 0 if hash == target, 1 if hash < target, and -1 if hash > target.
 func (target U256) Compare(hash U256) int {
-	return bytes.Compare(target[:], hash[:])
+	return cmpLimbs(target.toLimbs(), hash.toLimbs())
 }
 func (u U256) IsEqual(hash U256) bool {
 	return bytes.Equal(u[:], hash[:])
@@ -325,7 +328,7 @@ func (u U256) IsEqual(hash U256) bool {
 // (limbs[0] is the least significant limb).
 func (u U256) toLimbs() (limbs [4]uint64) {
 	for i := range 4 {
-		limbs[i] = binary.BigEndian.Uint64(u[24-8*i : 32-8*i])
+		limbs[i] = binary.LittleEndian.Uint64(u[8*i : 8*i+8])
 	}
 	return limbs
 }
@@ -333,7 +336,7 @@ func (u U256) toLimbs() (limbs [4]uint64) {
 // fromLimbs sets u from four 64-bit limbs in little-endian order.
 func (u *U256) fromLimbs(limbs [4]uint64) {
 	for i := range 4 {
-		binary.BigEndian.PutUint64(u[24-8*i:32-8*i], limbs[i])
+		binary.LittleEndian.PutUint64(u[8*i:8*i+8], limbs[i])
 	}
 }
 

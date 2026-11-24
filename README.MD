@@ -4,7 +4,7 @@
 
 https://stratumprotocol.org/
 
-currently unstable, api will change + no security guarantees atm (but any issues will be fixed)
+currently unstable, no security guarantees atm (but any issues will be fixed)
 
 # implemented
 - noise

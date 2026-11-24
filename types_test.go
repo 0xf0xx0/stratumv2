@@ -1,7 +1,6 @@
 package stratumv2_test
 
 import (
-	"encoding/hex"
 	"math/big"
 	"math/rand"
 	"strconv"
@@ -15,35 +14,35 @@ func TestU256(t *testing.T) {
 	target := stratumv2.U256{}
 	compar := stratumv2.U256{}
 
-	target.SetBytes(hexDec("00ff000000000000000000000000000000000000000000000000000000000000"))
+	target.SetString("00ff000000000000000000000000000000000000000000000000000000000000")
 
 	/// meets (equal)
-	compar.SetBytes(hexDec("00ff000000000000000000000000000000000000000000000000000000000000"))
+	compar.SetString("00ff000000000000000000000000000000000000000000000000000000000000")
 	if !target.IsMetBy(compar) {
 		t.Error("should have met target")
 	}
 
 	/// meets (less than)
-	compar.SetBytes(hexDec("000000000000000000000000000000000000000000000000000000000000ff00"))
+	compar.SetString("000000000000000000000000000000000000000000000000000000000000ff00")
 	if !target.IsMetBy(compar) {
 		t.Error("should have met target")
 	}
 
 	/// fails
-	compar.SetBytes(hexDec("ff00000000000000000000000000000000000000000000000000000000000000"))
+	compar.SetString("ff00000000000000000000000000000000000000000000000000000000000000")
 	if target.IsMetBy(compar) {
 		t.Error("should have failed to meet target")
 	}
 
 	/// fails (shared nonzero prefix, hash > target)
-	target.SetBytes(hexDec("1000000000000000000000000000000000000000000000000000000000000000"))
-	compar.SetBytes(hexDec("1000000000000000000000000000000000000000000000000000000000000001"))
+	target.SetString("1000000000000000000000000000000000000000000000000000000000000000")
+	compar.SetString("1000000000000000000000000000000000000000000000000000000000000001")
 	if target.IsMetBy(compar) {
 		t.Error("should have failed to meet target")
 	}
 
 	/// meets (shared nonzero prefix, hash < target)
-	compar.SetBytes(hexDec("1000000000000000000000000000000000000000000000000000000000000000"))
+	compar.SetString("1000000000000000000000000000000000000000000000000000000000000000")
 	if !target.IsMetBy(compar) {
 		t.Error("should have met target")
 	}
@@ -62,6 +61,33 @@ func TestU256(t *testing.T) {
 		t.Fatal("U256.String() mutates when it shouldnt")
 	}
 }
+
+func TestU256LittleEndian(t *testing.T) {
+	const display = "000102030405060708090a0b0c0d0e0f101112131415161718191a1b1c1d1e1f"
+	u := stratumv2.U256{}
+	if err := u.SetString(display); err != nil {
+		t.Fatal(err)
+	}
+	if u[0] != 0x1f {
+		t.Fatalf("first byte = %#02x, want least-significant byte 0x1f", u[0])
+	}
+	if got := u.String(); got != display {
+		t.Fatalf("String() = %q, want %q", got, display)
+	}
+	const raw = "1f1e1d1c1b1a191817161514131211100f0e0d0c0b0a09080706050403020100"
+	if got := u.StringNonReversed(); got != raw {
+		t.Fatalf("StringNonReversed() = %q, want %q", got, raw)
+	}
+
+	roundTrip := stratumv2.U256{}
+	if err := roundTrip.SetBytes(u.CloneBytes()); err != nil {
+		t.Fatal(err)
+	}
+	if got := roundTrip.String(); got != display {
+		t.Fatalf("SetBytes round trip = %q, want %q", got, display)
+	}
+}
+
 func TestU256Add(t *testing.T) {
 	target := stratumv2.U256{}
 	comp := stratumv2.U256{}
@@ -90,7 +116,7 @@ func TestU256Add(t *testing.T) {
 	if !expected.IsEqual(res) {
 		t.Fatalf("U256 addition failure:\ngot:\n\t%x\nwanted:\n\t%x", res[:], expected[:])
 	}
-	if diff, err := strconv.ParseInt(hex.EncodeToString(res[:]), 16, 64); diff != 0x25fba3 {
+	if diff, err := strconv.ParseInt(res.String(), 16, 64); diff != 0x25fba3 {
 		if err != nil {
 			t.Fatal(err)
 		}
@@ -160,7 +186,7 @@ func TestU256MulDiv(t *testing.T) {
 		b := &stratumv2.U256{}
 		rnd.Read(a[:])
 		rnd.Read(b[:])
-		pairs = append(pairs, [2]string{a.StringNonReversed(), b.StringNonReversed()})
+		pairs = append(pairs, [2]string{a.String(), b.String()})
 	}
 
 	for _, pair := range pairs {
@@ -179,8 +205,8 @@ func TestU256MulDiv(t *testing.T) {
 		want := new(big.Int).Mod(new(big.Int).Mul(aBig, bBig), modulus)
 		if got := a.Mul(*b); !got.IsEqual(*bigToU256(want)) {
 			t.Fatalf("U256 mul failure:\n%s *\n%s =\ngot\n\t%s\nwanted\n\t%s",
-				a.StringNonReversed(), b.StringNonReversed(),
-				got.StringNonReversed(), bigToU256(want).StringNonReversed())
+				a.String(), b.String(),
+				got.String(), bigToU256(want).String())
 		}
 
 		/// div
@@ -202,7 +228,7 @@ func TestU256DivByZero(t *testing.T) {
 		}
 	}()
 	one := &stratumv2.U256{}
-	one[31] = 1
+	one[0] = 1
 	one.Div(stratumv2.U256{})
 }
 
@@ -288,12 +314,18 @@ func BenchmarkFrameEncode(b *testing.B) {
 }
 
 func u256ToBig(u *stratumv2.U256) *big.Int {
-	/// u256 bytes are big-endian
-	return new(big.Int).SetBytes(u[:])
+	be := make([]byte, 32)
+	for i := range 32 {
+		be[i] = u[31-i]
+	}
+	return new(big.Int).SetBytes(be)
 }
 
 func bigToU256(b *big.Int) *stratumv2.U256 {
+	be := b.FillBytes(make([]byte, 32))
 	u := &stratumv2.U256{}
-	b.FillBytes(u[:])
+	for i := range 32 {
+		u[i] = be[31-i]
+	}
 	return u
 }
